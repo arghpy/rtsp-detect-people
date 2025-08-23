@@ -1,2 +1,3 @@
 # rtsp-detect-people
-Detect people from RTSP feed
+
+[![Super-Linter](https://github.com/arghpy/rtsp-detect-people/actions/workflows/manage_pull_requests.yaml/badge.svg)](https://github.com/marketplace/actions/super-linter)
