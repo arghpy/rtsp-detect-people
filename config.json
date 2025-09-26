@@ -1,0 +1,30 @@
+{
+  "timeout": "<int>",
+  "mobilenet": {
+    "prototxt": "/path/to/MobileNetSSD_deploy.prototxt",
+    "caffemodel": "/path/to/MobileNetSSD_deploy.caffemodel"
+  },
+  "rtsp": {
+    "camera": "<IP>",
+    "user": "<USER>",
+    "password": "<PASSWORD>",
+    "opencv_ffmpeg_capture_options": "rtsp_transport;tcp"
+    "save_video": {
+      "path": "/path/to/saved/videos",
+      "name": "<video_name>",
+      "format": "<video_format>",
+      "fps": "<float>"
+    }
+  },
+  "email": {
+    "user": "<USER_EMAIL>",
+    "password": "<PASSWORD>",
+    "server": "<SERVER>",
+    "port": "<PORT>",
+    "subject": "<SUBJECT>",
+    "recipients": [
+      "<EMAIL_1>",
+      "<EMAIL_2>"
+    ]
+  }
+}
