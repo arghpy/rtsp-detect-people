@@ -35,6 +35,7 @@ SAVE_VIDEO = False
 SEND_EMAIL = False
 out = None
 CONFIGURATION_FILE = None
+PLAY_VIDEO = None
 
 
 # pylint: disable=unused-argument
@@ -92,11 +93,19 @@ def try_to_connect_stream(config):
     wait_sec = 5
 
     while True:
-        cap = cv2.VideoCapture(
-            f"rtsp://{config["rtsp"]["user"]}:{config["rtsp"]["password"]}"
-            f"@{config["rtsp"]["camera"]}",
-            cv2.CAP_FFMPEG,
-        )
+        if PLAY_VIDEO is not None:
+            cap = cv2.VideoCapture(
+                PLAY_VIDEO,
+                cv2.CAP_FFMPEG,
+            )
+        else:
+            rtsp_user = config["rtsp"]["user"]
+            rtsp_password = config["rtsp"]["password"]
+            rtsp_feed = config["rtsp"]["feed"]
+            cap = cv2.VideoCapture(
+                f"rtsp://{rtsp_user}:{rtsp_password}" f"@{rtsp_feed}",
+                cv2.CAP_FFMPEG,
+            )
 
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         # reduce resolution before decoding
@@ -152,6 +161,7 @@ def usage(argv):
         ("-d/--display", "view footage live", False),
         ("-s/--save", "save live footage", False),
         ("-e/--email", "send email", False),
+        ("-v/--video VIDEO", "test with video", True),
     )
 
     str_options = " ".join(
@@ -173,7 +183,7 @@ def usage(argv):
 def parse_arguments(argv):
     """Parse command line arguments"""
     # pylint: disable=global-statement
-    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE
+    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE, PLAY_VIDEO
 
     passed_args = argv[1:]
 
@@ -190,6 +200,9 @@ def parse_arguments(argv):
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
             CONFIGURATION_FILE = passed_args[0]
+        elif passed_args[0] == "-v" or passed_args[0] == "--video":
+            passed_args.pop(0)
+            PLAY_VIDEO = passed_args[0]
         else:
             eprint(f"Invalid option: {passed_args[0]}")
             usage(argv)
