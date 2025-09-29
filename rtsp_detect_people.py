@@ -13,35 +13,10 @@ from datetime import datetime
 from email.message import EmailMessage
 
 import cv2
-import numpy as np
+from ultralytics import YOLO
 
-# MobileNet
-MOBILENET_RESIZED_DIMENSIONS = (300, 300)  # Dimensions that SSD was trained on.
-MOBILE_NET_IMG_NORM_RATIO = 0.007843  # In grayscale a pixel can range between 0 and 255
-
-MOBILENET_CATEGORIES = {
-    0: "background",
-    1: "aeroplane",
-    2: "bicycle",
-    3: "bird",
-    4: "boat",
-    5: "bottle",
-    6: "bus",
-    7: "car",
-    8: "cat",
-    9: "chair",
-    10: "cow",
-    11: "diningtable",
-    12: "dog",
-    13: "horse",
-    14: "motorbike",
-    15: "person",
-    16: "pottedplant",
-    17: "sheep",
-    18: "sofa",
-    19: "train",
-    20: "tvmonitor",
-}
+# Load YOLOv8n model (it will auto-download if missing)
+model = YOLO("yolov8n.pt")
 
 # Confidence parameters
 # (B, G, R) colors
@@ -90,9 +65,8 @@ def send_email_report(frame, image_type, config):
 
     # Create the container email message.
     msg = EmailMessage()
-    msg["Subject"] = (
-        config["email"]["subject"] + f": {time.strftime("%Y-%m-%d_%H:%M:%S")}"
-    )
+    current_time = time.strftime("%Y-%m-%d_%H:%M:%S")
+    msg["Subject"] = config["email"]["subject"] + f": {current_time}"
     msg["From"] = config["email"]["user"]
     msg["To"] = ", ".join(config["email"]["recipients"])
 
@@ -111,61 +85,6 @@ def send_email_report(frame, image_type, config):
         s.send_message(msg)
 
     os.remove(save_image_path)
-
-
-# pylint: disable=too-many-locals
-def process_frame_mobilenet(net, frame):
-    """Process frame using MobileNet-SSD"""
-    (original_height, original_width) = frame.shape[:2]
-
-    # Preprocess input
-    blob = cv2.dnn.blobFromImage(
-        cv2.resize(frame, MOBILENET_RESIZED_DIMENSIONS),
-        MOBILE_NET_IMG_NORM_RATIO,
-        MOBILENET_RESIZED_DIMENSIONS,
-        127.5,
-    )
-    net.setInput(blob)
-    detections = net.forward()
-
-    person_found = False
-
-    for i in range(detections.shape[2]):
-        confidence = detections[0, 0, i, 2]
-        if confidence > CONFIDENCE_MIN:
-            class_id = int(detections[0, 0, i, 1])
-            label = MOBILENET_CATEGORIES[class_id]
-
-            if label == "person":
-                person_found = True
-
-                box = detections[0, 0, i, 3:7] * np.array(
-                    [original_width, original_height, original_width, original_height]
-                )
-                (start_x, start_y, end_x, end_y) = box.astype("int")
-
-                cv2.rectangle(
-                    frame, (start_x, start_y), (end_x, end_y), BOX_COLOR, FONT_THICKNESS
-                )
-                cv2.putText(
-                    frame,
-                    f"Person: {confidence*100:.2f}%",
-                    (start_x, start_y - 5),
-                    FONT_NAME,
-                    FONT_SCALE,
-                    BOX_COLOR,
-                    FONT_THICKNESS,
-                )
-    return frame, person_found
-
-
-def load_mobilenet_model(config):
-    """Load MobileNet-SSD model"""
-    # Load the pre-trained neural network
-    net = cv2.dnn.readNetFromCaffe(
-        config["mobilenet"]["prototxt"], config["mobilenet"]["caffemodel"]
-    )
-    return net
 
 
 def try_to_connect_stream(config):
@@ -235,10 +154,11 @@ def usage(argv):
         ("-e/--email", "send email", False),
     )
 
-    program_usage = f"{argv[0]} {" ".join([f"{opt[0]}" if opt[2] is True else f"[{opt[0]}]" for opt in options])}"
-    program_description = usage_description(
-        "Detect people from RTSP stream."
+    str_options = " ".join(
+        [f"{opt[0]}" if opt[2] is True else f"[{opt[0]}]" for opt in options]
     )
+    program_usage = f"{argv[0]} {str_options}"
+    program_description = usage_description("Detect people from RTSP stream.")
     program_options = "".join([add_option(opt[0], opt[1]) for opt in options])
 
     program_help = (
@@ -291,6 +211,7 @@ if __name__ == "__main__":
     second = now.second
 
     SAVE_IMAGE_TYPE = "jpeg"
+    person_detected = False
     # pylint: disable=invalid-name
     email_sent = False
     email_future = None
@@ -308,7 +229,11 @@ if __name__ == "__main__":
         "opencv_ffmpeg_capture_options"
     ]
 
+    # Frame and properties
     video_capture = try_to_connect_stream(configuration)
+    video_fps = video_capture.get(cv2.CAP_PROP_FPS)
+    video_width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+    video_height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     if SAVE_VIDEO:
         return_value, video_frame = video_capture.read()
@@ -319,17 +244,14 @@ if __name__ == "__main__":
             video_capture.release()
             video_capture = try_to_connect_stream(configuration)
 
-        video_frame_height, video_frame_width, _ = video_frame.shape
-
-        video_path = configuration["rtsp"]["save_video"]["path"]
-        video_name = configuration["rtsp"]["save_video"]["name"]
-        video_path = (
-            f"{video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
+        output_video_path = configuration["rtsp"]["save_video"]["path"]
+        output_video_name = configuration["rtsp"]["save_video"]["name"]
+        output_video_path = (
+            f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
         )
         output_video_format = configuration["rtsp"]["save_video"]["format"]
-        output_video_fps = float(configuration["rtsp"]["save_video"]["fps"])
         output_video_name = (
-            f"{video_name}_{year}"
+            f"{output_video_name}_{year}"
             f"-{month}"
             f"-{day}"
             f"_{hour}"
@@ -338,27 +260,24 @@ if __name__ == "__main__":
             f".{output_video_format}"
         )
 
-        output_video = f"{video_path}/{output_video_name}"
+        output_video = f"{output_video_path}/{output_video_name}"
         print(f"Saving to {output_video}...", flush=True)
 
         try:
-            os.makedirs(video_path)
+            os.makedirs(output_video_path)
         except FileExistsError:
             # directory already exists
             pass
 
         out = cv2.VideoWriter(
             output_video,
-            cv2.VideoWriter_fourcc(*"H264"),
-            output_video_fps,
-            (video_frame_width, video_frame_height),
+            cv2.VideoWriter_fourcc(*"FFV1"),
+            video_fps,
+            (video_width, video_height),
         )
 
     # Create executor
     executor = ThreadPoolExecutor(max_workers=1)
-
-    # Load neural network
-    neural_network = load_mobilenet_model(configuration)
 
     while True:
         return_value, video_frame = video_capture.read()
@@ -379,9 +298,27 @@ if __name__ == "__main__":
             eprint("[WARN] Corrupt frame detected, skipping...")
             continue
 
-        video_frame, something_found = process_frame_mobilenet(
-            neural_network, video_frame
-        )
+        # Run model on frame
+        results = model(video_frame, verbose=False)
+
+        for result in results:
+            boxes = result.boxes
+            for box in boxes:
+                cls = int(box.cls[0])
+                confidence = float(box.conf[0])
+                if model.names[cls] == "person" and confidence > CONFIDENCE_MIN:
+                    person_detected = True
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    cv2.putText(
+                        video_frame,
+                        f"Person: {confidence*100:.2f}%",
+                        (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0, 255, 0),
+                        2,
+                    )
 
         # Send email
         if SEND_EMAIL:
@@ -391,7 +328,7 @@ if __name__ == "__main__":
                     email_sent = False
                     email_future = None
 
-            if something_found and (time.time() - start_timeout) > TIMEOUT:
+            if person_detected and (time.time() - start_timeout) > TIMEOUT:
                 email_future = executor.submit(
                     send_email_report,
                     video_frame.copy(),
@@ -400,10 +337,11 @@ if __name__ == "__main__":
                 )
                 email_sent = True
                 start_timeout = time.time()
+                person_detected = False
 
         # Show display
         if SHOW_DISPLAY:
-            cv2.imshow(configuration["rtsp"]["camera"], video_frame)
+            cv2.imshow(configuration["rtsp"]["feed"], video_frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
@@ -424,9 +362,9 @@ if __name__ == "__main__":
                 minute = now.minute
                 second = now.second
 
-                video_path = configuration["rtsp"]["save_video"]["path"]
-                video_path = (
-                    f"{video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
+                output_video_path = configuration["rtsp"]["save_video"]["path"]
+                output_video_path = (
+                    f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
                 )
 
                 output_video_name = (
@@ -439,11 +377,11 @@ if __name__ == "__main__":
                     f".{output_video_format}"
                 )
 
-                output_video = f"{video_path}/{output_video_name}"
+                output_video = f"{output_video_path}/{output_video_name}"
                 print(f"Saving to {output_video}...", flush=True)
 
                 try:
-                    os.makedirs(video_path)
+                    os.makedirs(output_video_path)
                 except FileExistsError:
                     # directory already exists
                     pass
@@ -452,8 +390,8 @@ if __name__ == "__main__":
                 out = cv2.VideoWriter(
                     output_video,
                     cv2.VideoWriter_fourcc(*"H264"),
-                    output_video_fps,
-                    (video_frame_width, video_frame_height),
+                    video_fps,
+                    (video_width, video_height),
                 )
             out.write(video_frame)
 
