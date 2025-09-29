@@ -2,14 +2,16 @@
 
 [![Super-Linter](https://github.com/arghpy/rtsp-detect-people/actions/workflows/manage_pull_requests.yaml/badge.svg)](https://github.com/marketplace/actions/super-linter)
 
-Detect people from an RTSP stream.
+Detect people from an RTSP stream using YOLOv8n model.
 
 ## Requirements
 
 A standard installation of `python3` should contain almost all libraries used in the program.
 The following need to be additionally installed (as packages or via pip):
 - `opencv` for `cv2` python library
-- `numpy`
+- `ultralytics`
+
+Or, you can use the docker image to run the program, without the need to install the libraries.
 
 ## Installation
 
@@ -18,10 +20,6 @@ After satisfying the requirements, simply run `rtsp_detect_people.py` with a con
 ## Configuration
 
 An example configuration file [can be found here](config.json).
-
-The MobileNetSSD model and weights [can be found here](https://automaticaddison.com/how-to-detect-objects-in-video-using-mobilenet-ssd-in-opencv/).
-
-If a more updated or reliable source is found, please create an issue about this.
 
 For people who would like to send an email via Gmail, the following is required:
 - create an [App Password](https://myaccount.google.com/apppasswords) (in my tests, leaving the spaces in between worked also)
