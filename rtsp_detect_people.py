@@ -119,6 +119,9 @@ def try_to_connect_stream(config):
                 cv2.CAP_FFMPEG,
             )
         else:
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = configuration["rtsp"][
+                "opencv_ffmpeg_capture_options"
+            ]
             rtsp_user = config["rtsp"]["user"]
             rtsp_password = config["rtsp"]["password"]
             rtsp_feed = config["rtsp"]["feed"]
@@ -263,10 +266,6 @@ if __name__ == "__main__":
 
     configuration = load_json_file(CONFIGURATION_FILE)
     TIMEOUT = int(configuration["timeout"])  # Secs
-
-    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = configuration["rtsp"][
-        "opencv_ffmpeg_capture_options"
-    ]
 
     # Frame and properties
     video_capture = try_to_connect_stream(configuration)
