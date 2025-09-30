@@ -88,6 +88,25 @@ def send_email_report(frame, image_type, config):
     os.remove(save_image_path)
 
 
+def try_create_video_writer(name, fps, width, height):
+    wait_sec = 5
+    while True:
+        out = cv2.VideoWriter(
+            name,
+            cv2.VideoWriter_fourcc(*"FFV1"),
+            fps,
+            (width, height),
+        )
+        if out.isOpened():
+            print(f"Saving to {name}...", flush=True)
+            return out
+
+        eprint("Failed to create video writer")
+        eprint(f"Wait for {wait_sec} seconds and try again")
+        out.release()
+        time.sleep(wait_sec)
+
+
 def try_to_connect_stream(config):
     """Try to reconnect the stream"""
     wait_sec = 5
@@ -274,20 +293,13 @@ if __name__ == "__main__":
         )
 
         output_video = f"{output_video_path}/{output_video_name}"
-        print(f"Saving to {output_video}...", flush=True)
 
         try:
             os.makedirs(output_video_path)
         except FileExistsError:
             # directory already exists
             pass
-
-        out = cv2.VideoWriter(
-            output_video,
-            cv2.VideoWriter_fourcc(*"FFV1"),
-            video_fps,
-            (video_width, video_height),
-        )
+        out = try_create_video_writer(output_video, video_fps, video_width, video_height)
 
     # Create executor
     executor = ThreadPoolExecutor(max_workers=1)
@@ -391,7 +403,6 @@ if __name__ == "__main__":
                 )
 
                 output_video = f"{output_video_path}/{output_video_name}"
-                print(f"Saving to {output_video}...", flush=True)
 
                 try:
                     os.makedirs(output_video_path)
@@ -399,13 +410,7 @@ if __name__ == "__main__":
                     # directory already exists
                     pass
 
-                # the output will be written to output.avi
-                out = cv2.VideoWriter(
-                    output_video,
-                    cv2.VideoWriter_fourcc(*"H264"),
-                    video_fps,
-                    (video_width, video_height),
-                )
+                out = try_create_video_writer(output_video, video_fps, video_width, video_height)
             out.write(video_frame)
 
     # Release and close threading
