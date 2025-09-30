@@ -19,12 +19,6 @@ from ultralytics import YOLO
 # Load YOLOv8n model (it will auto-download if missing)
 model = YOLO("yolov8n.pt")
 
-# Confidence parameters
-# (B, G, R) colors
-BOX_COLOR = (0, 255, 0)  # Green
-# Levels to check
-CONFIDENCE_MIN = 0.45
-
 # Font settings
 FONT_NAME = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.6
@@ -36,6 +30,11 @@ SAVE_VIDEO = False
 SEND_EMAIL = False
 CONFIGURATION_FILE = None
 PLAY_VIDEO = None
+
+# Other globals
+MAX_FRAME_DROPS = 5
+BOX_COLOR = (0, 255, 0)  # (B, G, R) colors - Green
+CONFIDENCE_MIN = 0.45
 
 
 # pylint: disable=unused-argument
@@ -102,8 +101,9 @@ def try_create_video_writer(name, fps, width, height):
             print(f"Saving to {name}", flush=True)
             return out
 
-        eprint("Failed to create video writer")
-        eprint(f"Wait for {wait_sec} seconds and try again")
+        current_time = datetime.now()
+        eprint(f"{current_time}: Failed to create video writer")
+        eprint(f"{current_time}: Wait for {wait_sec} seconds and try again")
         out.release()
         time.sleep(wait_sec)
 
@@ -128,16 +128,14 @@ def try_to_connect_stream(config):
             )
 
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        # reduce resolution before decoding
-        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 416)   # or 320
-        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 416)  # or 240
 
+        current_time = datetime.now()
         if cap.isOpened():
-            print("Succesfully connected to stream", flush=True)
+            print(f"{current_time}: Succesfully connected to stream", flush=True)
             return cap
 
-        eprint("Failed to reconnect.")
-        eprint(f"Wait for {wait_sec} seconds and try again")
+        eprint(f"{current_time}: Failed to reconnect.")
+        eprint(f"{current_time}: Wait for {wait_sec} seconds and try again")
         cap.release()
         time.sleep(wait_sec)
 
@@ -249,10 +247,14 @@ if __name__ == "__main__":
     SAVE_IMAGE_TYPE = "jpeg"
     PERSON_DETECTED = False
     OUT_VIDEO_WRITER = None
+    DROPPED_FRAMES = 0
     # pylint: disable=invalid-name
     email_sent = False
     email_future = None
     start_timeout = 0
+
+    # Create executor
+    executor = ThreadPoolExecutor(max_workers=1)
 
     if CONFIGURATION_FILE is None:
         eprint("Configuration not specified.")
@@ -273,14 +275,6 @@ if __name__ == "__main__":
     video_height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     if SAVE_VIDEO:
-        return_value, video_frame = video_capture.read()
-
-        # Restart the stream
-        if return_value is False or video_frame is None:
-            eprint("Lost connection. Trying to reconnect")
-            video_capture.release()
-            video_capture = try_to_connect_stream(configuration)
-
         output_video_path = configuration["rtsp"]["save_video"]["path"]
         output_video_name = configuration["rtsp"]["save_video"]["name"]
         output_video_path = (
@@ -308,18 +302,33 @@ if __name__ == "__main__":
             output_video, video_fps, video_width, video_height
         )
 
-    # Create executor
-    executor = ThreadPoolExecutor(max_workers=1)
-
+    # MAIN LOOP
     while True:
+        if not video_capture.isOpened():
+            current_time = datetime.now()
+            eprint(f"{current_time}: Video closed. Trying to reconnect")
+            video_capture.release()
+            video_capture = try_to_connect_stream(configuration)
+            DROPPED_FRAMES = 0
+            continue  # Get another frame
+
         return_value, video_frame = video_capture.read()
 
         # Restart the stream
         if return_value is False or video_frame is None:
-            eprint("Lost connection. Trying to reconnect")
-            video_capture.release()
-            video_capture = try_to_connect_stream(configuration)
-            continue
+            DROPPED_FRAMES += 1
+
+            if DROPPED_FRAMES >= MAX_FRAME_DROPS:
+                current_time = datetime.now()
+                eprint(f"{current_time}: Lost connection. Trying to reconnect")
+                video_capture.release()
+                video_capture = try_to_connect_stream(configuration)
+                DROPPED_FRAMES = 0
+                continue  # Get another frame
+
+            continue  # Get another frame
+        else:
+            DROPPED_FRAMES = 0
 
         # Check for corrupt frame
         if (
