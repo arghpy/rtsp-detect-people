@@ -13,6 +13,7 @@ from datetime import datetime
 from email.message import EmailMessage
 
 import cv2
+# pylint: disable=import-error
 from ultralytics import YOLO
 
 # Load YOLOv8n model (it will auto-download if missing)
@@ -33,7 +34,6 @@ FONT_THICKNESS = 2
 SHOW_DISPLAY = False
 SAVE_VIDEO = False
 SEND_EMAIL = False
-out = None
 CONFIGURATION_FILE = None
 PLAY_VIDEO = None
 
@@ -89,6 +89,7 @@ def send_email_report(frame, image_type, config):
 
 
 def try_create_video_writer(name, fps, width, height):
+    """Try to create a video writer to save video"""
     wait_sec = 5
     while True:
         out = cv2.VideoWriter(
@@ -158,16 +159,19 @@ def load_json_file(file):
 
 
 def usage_description(description):
+    """Formatting for description"""
     s = f"\n\nDESCRIPTION" f"\n\t{description}"
     return s
 
 
 def usage_header(header):
+    """Formatting for header"""
     s = f"\n\n{header.upper()}"
     return s
 
 
 def add_option(option, description):
+    """Add formatted option in description"""
     s = f"\n\n{option}," f"\n\t{description}"
     return s
 
@@ -243,7 +247,8 @@ if __name__ == "__main__":
     second = now.second
 
     SAVE_IMAGE_TYPE = "jpeg"
-    person_detected = False
+    PERSON_DETECTED = False
+    OUT_VIDEO_WRITER = None
     # pylint: disable=invalid-name
     email_sent = False
     email_future = None
@@ -299,7 +304,7 @@ if __name__ == "__main__":
         except FileExistsError:
             # directory already exists
             pass
-        out = try_create_video_writer(
+        OUT_VIDEO_WRITER = try_create_video_writer(
             output_video, video_fps, video_width, video_height
         )
 
@@ -334,7 +339,7 @@ if __name__ == "__main__":
                 cls = int(box.cls[0])
                 confidence = float(box.conf[0])
                 if model.names[cls] == "person" and confidence > CONFIDENCE_MIN:
-                    person_detected = True
+                    PERSON_DETECTED = True
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                     cv2.putText(
@@ -355,7 +360,7 @@ if __name__ == "__main__":
                     email_sent = False
                     email_future = None
 
-            if person_detected and (time.time() - start_timeout) > TIMEOUT:
+            if PERSON_DETECTED and (time.time() - start_timeout) > TIMEOUT:
                 email_future = executor.submit(
                     send_email_report,
                     video_frame.copy(),
@@ -364,7 +369,7 @@ if __name__ == "__main__":
                 )
                 email_sent = True
                 start_timeout = time.time()
-                person_detected = False
+                PERSON_DETECTED = False
 
         # Show display
         if SHOW_DISPLAY:
@@ -374,13 +379,13 @@ if __name__ == "__main__":
                 break
 
         # Save video
-        if SAVE_VIDEO and out is not None:
+        if SAVE_VIDEO and OUT_VIDEO_WRITER is not None:
             now = datetime.now()
 
             # Change every hour
             if now.hour != hour:
                 # Release before reconstructing
-                out.release()
+                OUT_VIDEO_WRITER.release()
 
                 year = now.year
                 month = now.month
@@ -412,15 +417,15 @@ if __name__ == "__main__":
                     # directory already exists
                     pass
 
-                out = try_create_video_writer(
+                OUT_VIDEO_WRITER = try_create_video_writer(
                     output_video, video_fps, video_width, video_height
                 )
-            out.write(video_frame)
+            OUT_VIDEO_WRITER.write(video_frame)
 
     # Release and close threading
     executor.shutdown(wait=True)
     video_capture.release()
-    if SAVE_VIDEO:
-        out.release()
+    if SAVE_VIDEO and OUT_VIDEO_WRITER is not None:
+        OUT_VIDEO_WRITER.release()
     if SHOW_DISPLAY:
         cv2.destroyAllWindows()
