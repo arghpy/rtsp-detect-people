@@ -98,7 +98,7 @@ def try_create_video_writer(name, fps, width, height):
             (width, height),
         )
         if out.isOpened():
-            print(f"Saving to {name}...", flush=True)
+            print(f"Saving to {name}", flush=True)
             return out
 
         eprint("Failed to create video writer")
