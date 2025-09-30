@@ -299,7 +299,9 @@ if __name__ == "__main__":
         except FileExistsError:
             # directory already exists
             pass
-        out = try_create_video_writer(output_video, video_fps, video_width, video_height)
+        out = try_create_video_writer(
+            output_video, video_fps, video_width, video_height
+        )
 
     # Create executor
     executor = ThreadPoolExecutor(max_workers=1)
@@ -410,7 +412,9 @@ if __name__ == "__main__":
                     # directory already exists
                     pass
 
-                out = try_create_video_writer(output_video, video_fps, video_width, video_height)
+                out = try_create_video_writer(
+                    output_video, video_fps, video_width, video_height
+                )
             out.write(video_frame)
 
     # Release and close threading
