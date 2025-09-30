@@ -313,10 +313,10 @@ if __name__ == "__main__":
 
         return_value, video_frame = video_capture.read()
 
-        # Restart the stream
-        if return_value is False or video_frame is None:
+        if return_value and video_frame is not None:
+            DROPPED_FRAMES = 0
+        else:
             DROPPED_FRAMES += 1
-
             if DROPPED_FRAMES >= MAX_FRAME_DROPS:
                 current_time = datetime.now()
                 eprint(f"{current_time}: Lost connection. Trying to reconnect")
@@ -324,10 +324,7 @@ if __name__ == "__main__":
                 video_capture = try_to_connect_stream(configuration)
                 DROPPED_FRAMES = 0
                 continue  # Get another frame
-
             continue  # Get another frame
-        else:
-            DROPPED_FRAMES = 0
 
         # Check for corrupt frame
         if (
