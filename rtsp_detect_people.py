@@ -2,10 +2,10 @@
 """Detect people from an RTSP stream"""
 # pylint: disable=c-extension-no-member
 
-import select
 import json
 import os
 import queue
+import select
 import signal
 import smtplib
 import subprocess
@@ -122,7 +122,8 @@ def writer_stream(output_video, width, height, fps) -> subprocess.Popen:
         f"keyint={int(fps*2)}:min-keyint={int(fps)}",
         "-pix_fmt",
         "yuv420p",
-        "-f", "matroska",
+        "-f",
+        "matroska",
         output_video,
     ]
     writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE)
