@@ -7,7 +7,6 @@
     "save_video": {
       "path": "/path/to/saved/videos",
       "name": "<video_name>",
-      "format": "<video_format>"
     }
   },
   "email": {
