@@ -1,6 +1,6 @@
 services:
   rtsp_detect:
-    image: 'ultralytics/ultralytics:latest'
+    build: .
     user: 1000:1000
     restart: unless-stopped
     volumes:
