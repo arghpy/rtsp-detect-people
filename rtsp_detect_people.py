@@ -152,6 +152,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
 
     pipe = reader_stream(rtsp_url)
     dropped_frames = 0
+    tried_to_reconnect = False
 
     while not stop_event.is_set():
         try:
@@ -175,15 +176,18 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
                 pipe.kill()  # terminate old ffmpeg
                 pipe = reader_stream(rtsp_url)  # restart reader
                 dropped_frames = 0
+                tried_to_reconnect = True
+        else:
+            if tried_to_reconnect:
+                print(f"{datetime.now()}: Successfully reconnected")
+                tried_to_reconnect = False
 
-            continue
-        dropped_frames = 0
-
-        try:
-            frame_queue.put(frame, timeout=1)
-        except queue.Full:
-            # Queue full → drop frame to avoid blocking
-            pass
+            dropped_frames = 0
+            try:
+                frame_queue.put(frame, timeout=1)
+            except queue.Full:
+                # Queue full → drop frame to avoid blocking
+                pass
 
     pipe.stdout.close()
     pipe.terminate()
