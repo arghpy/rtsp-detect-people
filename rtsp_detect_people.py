@@ -92,9 +92,9 @@ def send_email_report(frame, image_type, config):
     os.remove(save_image_path)
 
 
-def writer_stream(output_video, width, height, fps) -> subprocess.Popen:
+def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     """Write stream to file"""
-    print(f"{datetime.now()}: Saving to {output_video}")
+    print(f"{datetime.now()}: Saving to {video_path}")
 
     writer_cmd = [
         "ffmpeg",
@@ -124,8 +124,9 @@ def writer_stream(output_video, width, height, fps) -> subprocess.Popen:
         "yuv420p",
         "-f",
         "matroska",
-        output_video,
+        video_path,
     ]
+    # pylint: disable=consider-using-with
     writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE)
     return writer
 
@@ -146,6 +147,7 @@ def read_frame(pipe, width, height) -> np.ndarray | None:
     return np.frombuffer(raw, np.uint8).reshape((height, width, 3))
 
 
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     """Continuously add frames in queue to be processed"""
     print(f"{datetime.now()}: Reader thread started")
@@ -157,6 +159,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     while not stop_event.is_set():
         try:
             frame = read_frame(pipe.stdout, width, height)
+        # pylint: disable=broad-exception-caught
         except Exception as e:
             eprint(f"{datetime.now()}: Exception reading frame: {e}")
             pipe.kill()  # terminate old ffmpeg
@@ -213,6 +216,7 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
         "bgr24",
         "-",
     ]
+    # pylint: disable=consider-using-with
     reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE)
     return reader
 
@@ -236,7 +240,11 @@ def probe_stream(rtsp_url) -> tuple[int, int, float]:
 
     while True:
         probe = subprocess.run(
-            probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            probe_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
         )
         probe_stdout = probe.stdout.strip()
 
@@ -251,8 +259,7 @@ def probe_stream(rtsp_url) -> tuple[int, int, float]:
                 f"{datetime.now()}: Unexpected ffprobe output: {probe.stdout.strip()}"
             )
             continue
-        else:
-            break
+        break
 
     width, height, fps_str = parts
     width, height = int(width), int(height)
@@ -375,7 +382,7 @@ if __name__ == "__main__":
     email_sent = False
     email_future = None
     start_timeout = 0
-    stop_event = threading.Event()
+    STOP_EVENT = threading.Event()
 
     # Create executor
     executor = ThreadPoolExecutor(max_workers=1)
@@ -390,20 +397,20 @@ if __name__ == "__main__":
     rtsp_user = configuration["rtsp"]["user"]
     rtsp_password = configuration["rtsp"]["password"]
     rtsp_feed = configuration["rtsp"]["feed"]
-    rtsp_url = f"rtsp://{rtsp_user}:{rtsp_password}@{rtsp_feed}"
+    RTSP_URL = f"rtsp://{rtsp_user}:{rtsp_password}@{rtsp_feed}"
 
     # Frame and properties
-    video_width, video_height, video_fps = probe_stream(rtsp_url)
-    frame_queue = queue.Queue(maxsize=video_fps * 2)
+    video_width, video_height, video_fps = probe_stream(RTSP_URL)
+    FRAME_QUEUE = queue.Queue(maxsize=video_fps * 2)
     stream_reader_thread = threading.Thread(
         target=reader_frames_thread,
         args=(
-            frame_queue,
+            FRAME_QUEUE,
             video_width,
             video_height,
             video_fps,
-            rtsp_url,
-            stop_event,
+            RTSP_URL,
+            STOP_EVENT,
         ),
         daemon=True,
     )
@@ -440,7 +447,7 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         try:
-            video_frame = frame_queue.get(timeout=1)
+            video_frame = FRAME_QUEUE.get(timeout=1)
             video_frame = video_frame.copy()
         except queue.Empty:
             continue
@@ -551,7 +558,7 @@ if __name__ == "__main__":
     executor.shutdown(wait=True)
 
     # Stop reader
-    stop_event.set()
+    STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
 
     # Stop writer
