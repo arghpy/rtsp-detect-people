@@ -6,7 +6,7 @@
     "password": "<PASSWORD>",
     "save_video": {
       "path": "/path/to/saved/videos",
-      "name": "<video_name>",
+      "name": "<video_name>"
     }
   },
   "email": {
