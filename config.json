@@ -15,9 +15,6 @@
     "server": "<SERVER>",
     "port": "<PORT>",
     "subject": "<SUBJECT>",
-    "recipients": [
-      "<EMAIL_1>",
-      "<EMAIL_2>"
-    ]
+    "recipients": ["<EMAIL_1>", "<EMAIL_2>"]
   }
 }

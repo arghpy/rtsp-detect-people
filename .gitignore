@@ -2,3 +2,6 @@ test_config.json
 mobilenet-ssd/
 yolov8n.pt
 person.jpeg
+node_modules/
+package-lock.json
+package.json
