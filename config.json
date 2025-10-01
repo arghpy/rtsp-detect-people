@@ -4,7 +4,6 @@
     "feed": "<IP>",
     "user": "<USER>",
     "password": "<PASSWORD>",
-    "opencv_ffmpeg_capture_options": "rtsp_transport;tcp|stimeout;5000000",
     "save_video": {
       "path": "/path/to/saved/videos",
       "name": "<video_name>",
