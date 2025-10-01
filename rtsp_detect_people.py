@@ -122,8 +122,7 @@ def writer_stream(output_video, width, height, fps) -> subprocess.Popen:
         f"keyint={int(fps*2)}:min-keyint={int(fps)}",
         "-pix_fmt",
         "yuv420p",
-        "-movflags",
-        "+faststart+frag_keyframe+empty_moov",
+        "-f", "matroska",
         output_video,
     ]
     writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE)
@@ -415,7 +414,7 @@ if __name__ == "__main__":
         output_video_path = (
             f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
         )
-        output_video_format = configuration["rtsp"]["save_video"]["format"]
+        output_video_format = "mkv"
         output_video_name = (
             f"{output_video_name}_{year}"
             f"-{month}"
