@@ -2,17 +2,23 @@
 """Detect people from an RTSP stream"""
 # pylint: disable=c-extension-no-member
 
+import select
 import json
 import os
+import queue
 import signal
 import smtplib
+import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from email.message import EmailMessage
 
 import cv2
+import numpy as np
+
 # pylint: disable=import-error
 from ultralytics import YOLO
 
@@ -29,7 +35,6 @@ SHOW_DISPLAY = False
 SAVE_VIDEO = False
 SEND_EMAIL = False
 CONFIGURATION_FILE = None
-PLAY_VIDEO = None
 
 # Other globals
 MAX_FRAME_DROPS = 5
@@ -87,60 +92,176 @@ def send_email_report(frame, image_type, config):
     os.remove(save_image_path)
 
 
-def try_create_video_writer(name, fps, width, height):
-    """Try to create a video writer to save video"""
-    wait_sec = 5
+def writer_stream(output_video, width, height, fps) -> subprocess.Popen:
+    """Write stream to file"""
+    print(f"{datetime.now()}: Saving to {output_video}")
+
+    writer_cmd = [
+        "ffmpeg",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "bgr24",
+        "-s",
+        f"{width}x{height}",
+        "-r",
+        f"{fps}",
+        "-i",
+        "-",
+        "-an",  # no audio
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-g",
+        f"{int(fps*2)}",  # keyframe every 2 seconds
+        "-x264-params",
+        f"keyint={int(fps*2)}:min-keyint={int(fps)}",
+        "-pix_fmt",
+        "yuv420p",
+        "-movflags",
+        "+faststart+frag_keyframe+empty_moov",
+        output_video,
+    ]
+    writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE)
+    return writer
+
+
+def read_frame(pipe, width, height) -> np.ndarray | None:
+    """Read frame from reader"""
+    size = width * height * 3
+
+    # Wait until data is available or timeout expires
+    rlist, _, _ = select.select([pipe], [], [], 2)  # wait 2 seconds for data
+    if not rlist:
+        return None  # no data
+
+    raw = pipe.read(size)
+    if raw is None or len(raw) != size:
+        return None
+
+    return np.frombuffer(raw, np.uint8).reshape((height, width, 3))
+
+
+def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
+    """Continuously add frames in queue to be processed"""
+    print(f"{datetime.now()}: Reader thread started")
+
+    pipe = reader_stream(rtsp_url)
+    dropped_frames = 0
+
+    while not stop_event.is_set():
+        try:
+            frame = read_frame(pipe.stdout, width, height)
+        except Exception as e:
+            eprint(f"{datetime.now()}: Exception reading frame: {e}")
+            pipe.kill()  # terminate old ffmpeg
+            pipe.stdout.close()
+            pipe = reader_stream(rtsp_url)  # restart reader
+            dropped_frames = 0
+            continue
+
+        if frame is None:
+            dropped_frames += 1
+            if dropped_frames >= fps * 2:
+                eprint(
+                    f"{datetime.now()}: {fps*2} consecutive frames missing. Reconnecting"
+                )
+                time.sleep(2)
+                pipe.stdout.close()
+                pipe.kill()  # terminate old ffmpeg
+                pipe = reader_stream(rtsp_url)  # restart reader
+                dropped_frames = 0
+
+            continue
+        dropped_frames = 0
+
+        try:
+            frame_queue.put(frame, timeout=1)
+        except queue.Full:
+            # Queue full → drop frame to avoid blocking
+            pass
+
+    pipe.stdout.close()
+    pipe.terminate()
+
+
+def reader_stream(rtsp_url) -> subprocess.Popen:
+    """Continuously get frames from stream"""
+    print(f"{datetime.now()}: Starting ffmpeg reader...")
+
+    reader_cmd = [
+        "ffmpeg",
+        "-rtsp_transport",
+        "tcp",
+        "-i",
+        rtsp_url,
+        "-loglevel",
+        "error",
+        "-an",
+        "-sn",  # disable audio and subs
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "bgr24",
+        "-",
+    ]
+    reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE)
+    return reader
+
+
+def probe_stream(rtsp_url) -> tuple[int, int, float]:
+    """Probe the stream to get data"""
+    print(f"{datetime.now()}: Probing stream info...")
+
+    probe_cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "v:0",
+        "-show_entries",
+        "stream=width,height,r_frame_rate",
+        "-of",
+        "csv=s=x:p=0",
+        rtsp_url,
+    ]
+
     while True:
-        out = cv2.VideoWriter(
-            name,
-            cv2.VideoWriter_fourcc(*"FFV1"),
-            fps,
-            (width, height),
+        probe = subprocess.run(
+            probe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
-        if out.isOpened():
-            print(f"Saving to {name}", flush=True)
-            return out
+        probe_stdout = probe.stdout.strip()
 
-        current_time = datetime.now()
-        eprint(f"{current_time}: Failed to create video writer")
-        eprint(f"{current_time}: Wait for {wait_sec} seconds and try again")
-        out.release()
-        time.sleep(wait_sec)
+        if probe.returncode != 0 or not probe_stdout:
+            eprint(f"{datetime.now()}: Failed to probe RTSP stream info")
+            time.sleep(0.1)
+            continue
 
-
-def try_to_connect_stream(config):
-    """Try to reconnect the stream"""
-    wait_sec = 5
-
-    while True:
-        if PLAY_VIDEO is not None:
-            cap = cv2.VideoCapture(
-                PLAY_VIDEO,
-                cv2.CAP_FFMPEG,
+        parts = probe_stdout.split("x")
+        if len(parts) != 3:
+            eprint(
+                f"{datetime.now()}: Unexpected ffprobe output: {probe.stdout.strip()}"
             )
+            continue
         else:
-            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = configuration["rtsp"][
-                "opencv_ffmpeg_capture_options"
-            ]
-            rtsp_user = config["rtsp"]["user"]
-            rtsp_password = config["rtsp"]["password"]
-            rtsp_feed = config["rtsp"]["feed"]
-            cap = cv2.VideoCapture(
-                f"rtsp://{rtsp_user}:{rtsp_password}" f"@{rtsp_feed}",
-                cv2.CAP_FFMPEG,
-            )
+            break
 
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    width, height, fps_str = parts
+    width, height = int(width), int(height)
 
-        current_time = datetime.now()
-        if cap.isOpened():
-            print(f"{current_time}: Succesfully connected to stream", flush=True)
-            return cap
+    # Convert fps string like "25/1" or "30000/1001" to float
+    if "/" in fps_str:
+        num, den = fps_str.split("/")
+        fps = float(num) / float(den)
+    else:
+        fps = float(fps_str)
 
-        eprint(f"{current_time}: Failed to reconnect.")
-        eprint(f"{current_time}: Wait for {wait_sec} seconds and try again")
-        cap.release()
-        time.sleep(wait_sec)
+    print(f"Stream resolution: {width}x{height}, FPS: {fps:.2f}")
+    return width, height, fps
 
 
 def load_json_file(file):
@@ -185,7 +306,6 @@ def usage(argv):
         ("-d/--display", "view footage live", False),
         ("-s/--save", "save live footage", False),
         ("-e/--email", "send email", False),
-        ("-v/--video VIDEO", "test with video", True),
     )
 
     str_options = " ".join(
@@ -207,7 +327,7 @@ def usage(argv):
 def parse_arguments(argv):
     """Parse command line arguments"""
     # pylint: disable=global-statement
-    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE, PLAY_VIDEO
+    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE
 
     passed_args = argv[1:]
 
@@ -224,9 +344,6 @@ def parse_arguments(argv):
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
             CONFIGURATION_FILE = passed_args[0]
-        elif passed_args[0] == "-v" or passed_args[0] == "--video":
-            passed_args.pop(0)
-            PLAY_VIDEO = passed_args[0]
         else:
             eprint(f"Invalid option: {passed_args[0]}")
             usage(argv)
@@ -250,11 +367,11 @@ if __name__ == "__main__":
     SAVE_IMAGE_TYPE = "jpeg"
     PERSON_DETECTED = False
     OUT_VIDEO_WRITER = None
-    DROPPED_FRAMES = 0
     # pylint: disable=invalid-name
     email_sent = False
     email_future = None
     start_timeout = 0
+    stop_event = threading.Event()
 
     # Create executor
     executor = ThreadPoolExecutor(max_workers=1)
@@ -266,12 +383,27 @@ if __name__ == "__main__":
 
     configuration = load_json_file(CONFIGURATION_FILE)
     TIMEOUT = int(configuration["timeout"])  # Secs
+    rtsp_user = configuration["rtsp"]["user"]
+    rtsp_password = configuration["rtsp"]["password"]
+    rtsp_feed = configuration["rtsp"]["feed"]
+    rtsp_url = f"rtsp://{rtsp_user}:{rtsp_password}@{rtsp_feed}"
 
     # Frame and properties
-    video_capture = try_to_connect_stream(configuration)
-    video_fps = video_capture.get(cv2.CAP_PROP_FPS)
-    video_width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-    video_height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    video_width, video_height, video_fps = probe_stream(rtsp_url)
+    frame_queue = queue.Queue(maxsize=video_fps * 2)
+    stream_reader_thread = threading.Thread(
+        target=reader_frames_thread,
+        args=(
+            frame_queue,
+            video_width,
+            video_height,
+            video_fps,
+            rtsp_url,
+            stop_event,
+        ),
+        daemon=True,
+    )
+    stream_reader_thread.start()
 
     if SAVE_VIDEO:
         output_video_path = configuration["rtsp"]["save_video"]["path"]
@@ -297,34 +429,17 @@ if __name__ == "__main__":
         except FileExistsError:
             # directory already exists
             pass
-        OUT_VIDEO_WRITER = try_create_video_writer(
-            output_video, video_fps, video_width, video_height
+        OUT_VIDEO_WRITER = writer_stream(
+            output_video, video_width, video_height, video_fps
         )
 
     # MAIN LOOP
     while True:
-        if not video_capture.isOpened():
-            current_time = datetime.now()
-            eprint(f"{current_time}: Video closed. Trying to reconnect")
-            video_capture.release()
-            video_capture = try_to_connect_stream(configuration)
-            DROPPED_FRAMES = 0
-            continue  # Get another frame
-
-        return_value, video_frame = video_capture.read()
-
-        if return_value and video_frame is not None:
-            DROPPED_FRAMES = 0
-        else:
-            DROPPED_FRAMES += 1
-            if DROPPED_FRAMES >= MAX_FRAME_DROPS:
-                current_time = datetime.now()
-                eprint(f"{current_time}: Lost connection. Trying to reconnect")
-                video_capture.release()
-                video_capture = try_to_connect_stream(configuration)
-                DROPPED_FRAMES = 0
-                continue  # Get another frame
-            continue  # Get another frame
+        try:
+            video_frame = frame_queue.get(timeout=1)
+            video_frame = video_frame.copy()
+        except queue.Empty:
+            continue
 
         # Check for corrupt frame
         if (
@@ -336,14 +451,14 @@ if __name__ == "__main__":
             continue
 
         # Run model on frame
-        results = model(video_frame, verbose=False)
+        results = model(video_frame, conf=CONFIDENCE_MIN, verbose=False)
 
         for result in results:
             boxes = result.boxes
             for box in boxes:
                 cls = int(box.cls[0])
                 confidence = float(box.conf[0])
-                if model.names[cls] == "person" and confidence > CONFIDENCE_MIN:
+                if model.names[cls] == "person":
                     PERSON_DETECTED = True
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -390,7 +505,8 @@ if __name__ == "__main__":
             # Change every hour
             if now.hour != hour:
                 # Release before reconstructing
-                OUT_VIDEO_WRITER.release()
+                OUT_VIDEO_WRITER.stdin.close()
+                OUT_VIDEO_WRITER.wait()
 
                 year = now.year
                 month = now.month
@@ -422,15 +538,23 @@ if __name__ == "__main__":
                     # directory already exists
                     pass
 
-                OUT_VIDEO_WRITER = try_create_video_writer(
-                    output_video, video_fps, video_width, video_height
+                OUT_VIDEO_WRITER = writer_stream(
+                    output_video, video_width, video_height, video_fps
                 )
-            OUT_VIDEO_WRITER.write(video_frame)
+            OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
 
     # Release and close threading
     executor.shutdown(wait=True)
-    video_capture.release()
-    if SAVE_VIDEO and OUT_VIDEO_WRITER is not None:
-        OUT_VIDEO_WRITER.release()
+
+    # Stop reader
+    stop_event.set()
+    stream_reader_thread.join(timeout=2)
+
+    # Stop writer
+    if SAVE_VIDEO:
+        OUT_VIDEO_WRITER.stdin.close()
+        OUT_VIDEO_WRITER.wait()
+
+    # Destroy window if display was set
     if SHOW_DISPLAY:
         cv2.destroyAllWindows()
