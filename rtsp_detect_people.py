@@ -117,9 +117,9 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
         "-preset",
         "veryfast",
         "-g",
-        f"{int(fps*2)}",  # keyframe every 2 seconds
+        f"{fps*2}",  # keyframe every 2 seconds
         "-x264-params",
-        f"keyint={int(fps*2)}:min-keyint={int(fps)}",
+        f"keyint={fps*2}:min-keyint={fps}",
         "-pix_fmt",
         "yuv420p",
         "-f",
@@ -221,7 +221,7 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
     return reader
 
 
-def probe_stream(rtsp_url) -> tuple[int, int, float]:
+def probe_stream(rtsp_url) -> tuple[int, int, int]:
     """Probe the stream to get data"""
     print(f"{datetime.now()}: Probing stream info...")
 
@@ -261,15 +261,16 @@ def probe_stream(rtsp_url) -> tuple[int, int, float]:
             continue
         break
 
-    width, height, fps_str = parts
-    width, height = int(width), int(height)
+    width = int(parts[0])
+    height = int(parts[1])
+    fps_str = parts[2]
 
     # Convert fps string like "25/1" or "30000/1001" to float
     if "/" in fps_str:
         num, den = fps_str.split("/")
-        fps = float(num) / float(den)
+        fps = int(float(num) / float(den))
     else:
-        fps = float(fps_str)
+        fps = int(fps_str)
 
     print(f"Stream resolution: {width}x{height}, FPS: {fps:.2f}")
     return width, height, fps
