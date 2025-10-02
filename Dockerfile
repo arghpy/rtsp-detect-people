@@ -1,5 +1,5 @@
 # Start from the official Ultralytics image
-FROM ultralytics/ultralytics@sha256:6a2b333adc02a93cce839a5685d76ddae09ed0eead816b796bd69fab3ae39eab
+FROM ultralytics/ultralytics:latest
 
 # Install ffmpeg (Debian-based image)
 RUN apt-get update\
