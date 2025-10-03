@@ -176,9 +176,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
         if frame is None:
             dropped_frames += 1
             if dropped_frames >= fps * 2:
-                eprint(
-                    f"{dropped_frames} consecutive frames missing. Reconnecting"
-                )
+                eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
                 time.sleep(2)
                 pipe.stdout.close()
                 pipe.kill()  # terminate old ffmpeg
@@ -260,9 +258,7 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
 
         parts = probe_stdout.split("x")
         if len(parts) != 3:
-            eprint(
-                f"Unexpected ffprobe output: {probe.stdout.strip()}"
-            )
+            eprint(f"Unexpected ffprobe output: {probe.stdout.strip()}")
             continue
         break
 
