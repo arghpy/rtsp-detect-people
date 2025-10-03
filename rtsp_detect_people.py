@@ -46,10 +46,10 @@ CONFIDENCE_MIN = 0.45
 def handle_signals(signum, exec_frame):
     """Respond to different signals"""
     signame = signal.Signals(signum).name
-    print(f"Received {signame}({signum})", flush=True)
+    pprint(f"Received {signame}({signum})")
 
     if signum == signal.SIGINT:
-        print("Exiting...", flush=True)
+        pprint("Exiting")
         sys.exit(1)
 
 
@@ -57,13 +57,18 @@ signal.signal(signal.SIGINT, handle_signals)
 
 
 def eprint(s):
-    """Print to stderr"""
-    print(f"{s}", file=sys.stderr, flush=True)
+    """Print to stderr with current time"""
+    print(f"{datetime.now}: {s}", file=sys.stderr, flush=True)
+
+
+def pprint(s):
+    """Print to stdout with current time"""
+    print(f"{datetime.now()}: {s}", file=sys.stdout, flush=True)
 
 
 def send_email_report(frame, image_type, config):
     """Send email based on the environment variables"""
-    print("Person detected. Sending email...", flush=True)
+    pprint("Person detected. Sending email")
 
     save_image_path = f"person.{image_type}"
     cv2.imwrite(save_image_path, frame)
@@ -94,7 +99,7 @@ def send_email_report(frame, image_type, config):
 
 def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     """Write stream to file"""
-    print(f"{datetime.now()}: Saving to {video_path}")
+    pprint(f"Saving to {video_path}")
 
     writer_cmd = [
         "ffmpeg",
@@ -150,7 +155,7 @@ def read_frame(pipe, width, height) -> np.ndarray | None:
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     """Continuously add frames in queue to be processed"""
-    print(f"{datetime.now()}: Reader thread started")
+    pprint("Reader thread started")
 
     pipe = reader_stream(rtsp_url)
     dropped_frames = 0
@@ -161,7 +166,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
             frame = read_frame(pipe.stdout, width, height)
         # pylint: disable=broad-exception-caught
         except Exception as e:
-            eprint(f"{datetime.now()}: Exception reading frame: {e}")
+            eprint(f"Exception reading frame: {e}")
             pipe.kill()  # terminate old ffmpeg
             pipe.stdout.close()
             pipe = reader_stream(rtsp_url)  # restart reader
@@ -172,7 +177,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
             dropped_frames += 1
             if dropped_frames >= fps * 2:
                 eprint(
-                    f"{datetime.now()}: {fps*2} consecutive frames missing. Reconnecting"
+                    f"{dropped_frames} consecutive frames missing. Reconnecting"
                 )
                 time.sleep(2)
                 pipe.stdout.close()
@@ -182,7 +187,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
                 tried_to_reconnect = True
         else:
             if tried_to_reconnect:
-                print(f"{datetime.now()}: Successfully reconnected")
+                pprint("Successfully reconnected")
                 tried_to_reconnect = False
 
             dropped_frames = 0
@@ -198,7 +203,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
 
 def reader_stream(rtsp_url) -> subprocess.Popen:
     """Continuously get frames from stream"""
-    print(f"{datetime.now()}: Starting ffmpeg reader...")
+    pprint("Starting ffmpeg reader")
 
     reader_cmd = [
         "ffmpeg",
@@ -223,7 +228,7 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
 
 def probe_stream(rtsp_url) -> tuple[int, int, int]:
     """Probe the stream to get data"""
-    print(f"{datetime.now()}: Probing stream info...")
+    pprint("Probing stream info")
 
     probe_cmd = [
         "ffprobe",
@@ -249,14 +254,14 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
         probe_stdout = probe.stdout.strip()
 
         if probe.returncode != 0 or not probe_stdout:
-            eprint(f"{datetime.now()}: Failed to probe RTSP stream info")
+            eprint("Failed to probe RTSP stream info")
             time.sleep(0.1)
             continue
 
         parts = probe_stdout.split("x")
         if len(parts) != 3:
             eprint(
-                f"{datetime.now()}: Unexpected ffprobe output: {probe.stdout.strip()}"
+                f"Unexpected ffprobe output: {probe.stdout.strip()}"
             )
             continue
         break
@@ -272,7 +277,7 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
     else:
         fps = int(fps_str)
 
-    print(f"Stream resolution: {width}x{height}, FPS: {fps:.2f}")
+    pprint(f"Stream resolution: {width}x{height}, FPS: {fps:.2f}")
     return width, height, fps
 
 
@@ -490,7 +495,7 @@ if __name__ == "__main__":
         if SEND_EMAIL:
             if email_sent and email_future is not None:
                 if email_future.done():
-                    print("Email sent.", flush=True)
+                    pprint("Email sent")
                     email_sent = False
                     email_future = None
 
