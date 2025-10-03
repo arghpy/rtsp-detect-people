@@ -470,7 +470,9 @@ if __name__ == "__main__":
             for box in boxes:
                 cls = int(box.cls[0])
                 confidence = float(box.conf[0])
-                if model.names[cls] == "person":
+                if model.names[cls] != "person":
+                    PERSON_DETECTED = False
+                else:
                     PERSON_DETECTED = True
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
@@ -501,7 +503,6 @@ if __name__ == "__main__":
                 )
                 email_sent = True
                 start_timeout = time.time()
-                PERSON_DETECTED = False
 
         # Show display
         if SHOW_DISPLAY:
