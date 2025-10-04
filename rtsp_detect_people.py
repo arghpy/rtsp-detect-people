@@ -404,6 +404,11 @@ if __name__ == "__main__":
 
     # Frame and properties
     video_width, video_height, video_fps = probe_stream(RTSP_URL)
+    try:
+        video_fps = int(configuration["rtsp"]["save_video"]["optional_force_fps"])
+        pprint(f"FPS was overridden by the config option to {video_fps}")
+    except KeyError:
+        pass
     FRAME_QUEUE = queue.Queue(maxsize=video_fps * 2)
     stream_reader_thread = threading.Thread(
         target=reader_frames_thread,
