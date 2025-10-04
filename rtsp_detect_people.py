@@ -39,7 +39,7 @@ CONFIGURATION_FILE = None
 # Other globals
 MAX_FRAME_DROPS = 5
 BOX_COLOR = (0, 255, 0)  # (B, G, R) colors - Green
-CONFIDENCE_MIN = 0.45
+CONFIDENCE_MIN = None
 
 
 # pylint: disable=unused-argument
@@ -396,6 +396,7 @@ if __name__ == "__main__":
 
     configuration = load_json_file(CONFIGURATION_FILE)
     TIMEOUT = int(configuration["timeout"])  # Secs
+    CONFIDENCE_MIN = float(configuration["confidence"])
     rtsp_user = configuration["rtsp"]["user"]
     rtsp_password = configuration["rtsp"]["password"]
     rtsp_feed = configuration["rtsp"]["feed"]
