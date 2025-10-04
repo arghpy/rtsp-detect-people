@@ -231,7 +231,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
 
             if dropped_frames >= fps * 2:
                 eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
-                reconnect_pipe_process(pipe)
+                reconnect_pipe_process(pipe, rtsp_url)
                 dropped_frames = 0
         else:
             dropped_frames = 0
