@@ -1,5 +1,6 @@
 {
   "timeout": "<int>",
+  "confidence": "<float_between_0_1>",
   "rtsp": {
     "feed": "<IP>",
     "user": "<USER>",
