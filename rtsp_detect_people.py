@@ -58,7 +58,7 @@ signal.signal(signal.SIGINT, handle_signals)
 
 def eprint(s):
     """Print to stderr with current time"""
-    print(f"{datetime.now}: {s}", file=sys.stderr, flush=True)
+    print(f"{datetime.now()}: {s}", file=sys.stderr, flush=True)
 
 
 def pprint(s):
