@@ -136,7 +136,7 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     return writer
 
 
-def read_frame(pipe, width, height) -> np.ndarray | None:
+def read_frame(pipe: subprocess.Popen, width, height) -> np.ndarray | None:
     """Read frame from reader"""
     size = width * height * 3
 
@@ -150,53 +150,6 @@ def read_frame(pipe, width, height) -> np.ndarray | None:
         return None
 
     return np.frombuffer(raw, np.uint8).reshape((height, width, 3))
-
-
-# pylint: disable=too-many-arguments,too-many-positional-arguments
-def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
-    """Continuously add frames in queue to be processed"""
-    pprint("Reader thread started")
-
-    pipe = reader_stream(rtsp_url)
-    dropped_frames = 0
-    tried_to_reconnect = False
-
-    while not stop_event.is_set():
-        try:
-            frame = read_frame(pipe.stdout, width, height)
-        # pylint: disable=broad-exception-caught
-        except Exception as e:
-            eprint(f"Exception reading frame: {e}")
-            pipe.kill()  # terminate old ffmpeg
-            pipe.stdout.close()
-            pipe = reader_stream(rtsp_url)  # restart reader
-            dropped_frames = 0
-            continue
-
-        if frame is None:
-            dropped_frames += 1
-            if dropped_frames >= fps * 2:
-                eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
-                time.sleep(2)
-                pipe.stdout.close()
-                pipe.kill()  # terminate old ffmpeg
-                pipe = reader_stream(rtsp_url)  # restart reader
-                dropped_frames = 0
-                tried_to_reconnect = True
-        else:
-            if tried_to_reconnect:
-                pprint("Successfully reconnected")
-                tried_to_reconnect = False
-
-            dropped_frames = 0
-            try:
-                frame_queue.put(frame, timeout=1)
-            except queue.Full:
-                # Queue full → drop frame to avoid blocking
-                pass
-
-    pipe.stdout.close()
-    pipe.terminate()
 
 
 def reader_stream(rtsp_url) -> subprocess.Popen:
@@ -222,6 +175,74 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
     # pylint: disable=consider-using-with
     reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE)
     return reader
+
+
+def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url):
+    """Safely reconnect to stream"""
+    terminate_pipe_process(pipe)
+    pipe = reader_stream(rtsp_url)
+    while pipe.returncode is not None:
+        terminate_pipe_process(pipe)
+        pipe = reader_stream(rtsp_url)
+        time.sleep(1)
+    pprint("Successfully reconnected")
+
+
+def terminate_pipe_process(pipe: subprocess.Popen):
+    """Safely terminate the pipe"""
+    wait_timeout = 5
+    pipe.stdout.close()
+    pipe.stderr.close()
+    pipe.terminate()
+
+    try:
+        pipe.wait(timeout=wait_timeout)
+    except subprocess.TimeoutExpired:
+        eprint(f"Waited for {wait_timeout}. Killing process")
+        pipe.kill()
+
+
+# pylint: disable=too-many-arguments,too-many-positional-arguments
+def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
+    """Continuously add frames in queue to be processed"""
+    pprint("Reader thread started")
+
+    pipe = reader_stream(rtsp_url)
+    if pipe.returncode is not None:
+        pprint(f"STDOUT: {pipe.stdout}")
+        eprint(f"STDERR: {pipe.stderr}")
+        eprint(f"RETURN CODE: {pipe.returncode}")
+        stop_event.set()
+
+    dropped_frames = 0
+
+    while not stop_event.is_set():
+        frame = None
+        try:
+            frame = read_frame(pipe.stdout, width, height)
+        # pylint: disable=broad-exception-caught
+        except Exception as e:
+            eprint(f"Exception reading frame: {e}")
+            dropped_frames += 1
+            continue
+
+        if frame is None:
+            dropped_frames += 1
+
+            if dropped_frames >= fps * 2:
+                eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
+                reconnect_pipe_process(pipe)
+                dropped_frames = 0
+        else:
+            dropped_frames = 0
+
+            try:
+                frame_queue.put(frame, timeout=1)
+            except queue.Full:
+                # Queue full → drop frame to avoid blocking
+                pass
+
+    terminate_pipe_process(pipe)
 
 
 def probe_stream(rtsp_url) -> tuple[int, int, int]:
@@ -275,6 +296,32 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
 
     pprint(f"Stream resolution: {width}x{height}, FPS: {fps:.2f}")
     return width, height, fps
+
+
+def process_frame(frame, confidence):
+    """Process frame with yolo model"""
+    person_detected = False
+    results = model(frame, conf=CONFIDENCE_MIN, verbose=False)
+
+    for result in results:
+        boxes = result.boxes
+        for box in boxes:
+            cls = int(box.cls[0])
+            confidence = float(box.conf[0])
+            if model.names[cls] == "person":
+                person_detected = True
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                cv2.putText(
+                    frame,
+                    f"Person: {confidence*100:.2f}%",
+                    (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (0, 255, 0),
+                    2,
+                )
+    return frame, person_detected
 
 
 def load_json_file(file):
@@ -378,7 +425,6 @@ if __name__ == "__main__":
     second = now.second
 
     SAVE_IMAGE_TYPE = "jpeg"
-    PERSON_DETECTED = False
     OUT_VIDEO_WRITER = None
     # pylint: disable=invalid-name
     email_sent = False
@@ -397,16 +443,16 @@ if __name__ == "__main__":
     configuration = load_json_file(CONFIGURATION_FILE)
     TIMEOUT = int(configuration["timeout"])  # Secs
     CONFIDENCE_MIN = float(configuration["confidence"])
-    rtsp_user = configuration["rtsp"]["user"]
-    rtsp_password = configuration["rtsp"]["password"]
-    rtsp_feed = configuration["rtsp"]["feed"]
-    RTSP_URL = f"rtsp://{rtsp_user}:{rtsp_password}@{rtsp_feed}"
+    RTSP_USER = configuration["rtsp"]["user"]
+    RTSP_PASSWORD = configuration["rtsp"]["password"]
+    RTSP_FEED = configuration["rtsp"]["feed"]
+    RTSP_URL = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{RTSP_FEED}"
 
     # Frame and properties
     video_width, video_height, video_fps = probe_stream(RTSP_URL)
     try:
         video_fps = int(configuration["rtsp"]["save_video"]["optional_force_fps"])
-        pprint(f"FPS was overridden by the config option to {video_fps}")
+        pprint(f"FPS was overridden by the config to {video_fps}")
     except KeyError:
         pass
     FRAME_QUEUE = queue.Queue(maxsize=video_fps * 2)
@@ -454,11 +500,8 @@ if __name__ == "__main__":
 
     # MAIN LOOP
     while True:
-        try:
-            video_frame = FRAME_QUEUE.get(timeout=1)
-            video_frame = video_frame.copy()
-        except queue.Empty:
-            continue
+        video_frame = FRAME_QUEUE.get(block=True)  # Wait until a frame is available
+        video_frame = video_frame.copy()
 
         # Check for corrupt frame
         if (
@@ -470,28 +513,7 @@ if __name__ == "__main__":
             continue
 
         # Run model on frame
-        results = model(video_frame, conf=CONFIDENCE_MIN, verbose=False)
-
-        for result in results:
-            boxes = result.boxes
-            for box in boxes:
-                cls = int(box.cls[0])
-                confidence = float(box.conf[0])
-                if model.names[cls] != "person":
-                    PERSON_DETECTED = False
-                else:
-                    PERSON_DETECTED = True
-                    x1, y1, x2, y2 = map(int, box.xyxy[0])
-                    cv2.rectangle(video_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                    cv2.putText(
-                        video_frame,
-                        f"Person: {confidence*100:.2f}%",
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.5,
-                        (0, 255, 0),
-                        2,
-                    )
+        video_frame, PERSON_DETECTED = process_frame(video_frame, CONFIDENCE_MIN)
 
         # Send email
         if SEND_EMAIL:
