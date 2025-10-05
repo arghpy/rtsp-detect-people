@@ -192,7 +192,6 @@ def terminate_pipe_process(pipe: subprocess.Popen):
     """Safely terminate the pipe"""
     wait_timeout = 5
     pipe.stdout.close()
-    pipe.stderr.close()
     pipe.terminate()
 
     try:
