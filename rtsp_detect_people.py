@@ -177,17 +177,6 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
     return reader
 
 
-def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url):
-    """Safely reconnect to stream"""
-    terminate_pipe_process(pipe)
-    pipe = reader_stream(rtsp_url)
-    while pipe.returncode is not None:
-        terminate_pipe_process(pipe)
-        pipe = reader_stream(rtsp_url)
-        time.sleep(1)
-    pprint("Successfully reconnected")
-
-
 def terminate_pipe_process(pipe: subprocess.Popen):
     """Safely terminate the pipe"""
     wait_timeout = 5
@@ -201,16 +190,34 @@ def terminate_pipe_process(pipe: subprocess.Popen):
         pipe.kill()
 
 
+def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url):
+    """Safely reconnect to stream, retry until ffmpeg is alive."""
+    terminate_pipe_process(pipe)
+
+    attempt = 0
+    while True:
+        attempt += 1
+        eprint(f"Reconnecting attempt #{attempt}...")
+
+        new_pipe = reader_stream(rtsp_url)
+        time.sleep(1.0)  # give ffmpeg a moment to start
+
+        if new_pipe and new_pipe.poll() is None and new_pipe.stdout:
+            pprint("Successfully reconnected")
+            return new_pipe
+
+        eprint("ffmpeg failed to start or exited immediately")
+        terminate_pipe_process(new_pipe)
+        time.sleep(2)
+
+
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     """Continuously add frames in queue to be processed"""
     pprint("Reader thread started")
 
     pipe = reader_stream(rtsp_url)
-    if pipe.returncode is not None:
-        pprint(f"STDOUT: {pipe.stdout}")
-        eprint(f"STDERR: {pipe.stderr}")
-        eprint(f"RETURN CODE: {pipe.returncode}")
+    if pipe is None or pipe.returncode is not None:
         stop_event.set()
 
     dropped_frames = 0
@@ -230,7 +237,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
 
             if dropped_frames >= fps * 2:
                 eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
-                reconnect_pipe_process(pipe, rtsp_url)
+                pipe = reconnect_pipe_process(pipe, rtsp_url)
                 dropped_frames = 0
         else:
             dropped_frames = 0
