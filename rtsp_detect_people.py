@@ -315,12 +315,14 @@ def process_frame(frame, confidence):
             cls = int(box.cls[0])
             confidence = float(box.conf[0])
             if model.names[cls] == "person":
+                msg = f"Person: {confidence*100:.2f}%"
+                pprint(msg)
                 person_detected = True
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
                 cv2.putText(
                     frame,
-                    f"Person: {confidence*100:.2f}%",
+                    msg,
                     (x1, y1 - 10),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.5,
