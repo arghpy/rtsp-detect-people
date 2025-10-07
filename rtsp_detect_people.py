@@ -18,6 +18,7 @@ from email.message import EmailMessage
 
 import cv2
 import numpy as np
+from flask import Flask, Response
 
 # pylint: disable=import-error
 from ultralytics import YOLO
@@ -35,11 +36,64 @@ SHOW_DISPLAY = False
 SAVE_VIDEO = False
 SEND_EMAIL = False
 CONFIGURATION_FILE = None
+ENABLE_WEB = False
+WEB_PORT = None
 
 # Other globals
 MAX_FRAME_DROPS = 5
 BOX_COLOR = (0, 255, 0)  # (B, G, R) colors - Green
 CONFIDENCE_MIN = None
+
+# --- WEB SERVER GLOBALS ---
+latest_frame = None
+frame_lock = threading.Lock()
+
+app = Flask(__name__)
+
+
+@app.route("/")
+def index():
+    return """
+    <html>
+        <head><title>RTSP Stream</title></head>
+        <body style="background-color:black;text-align:center;">
+            <h2 style="color:white;">Live RTSP Stream</h2>
+            <img src="/video_feed" width="100%" />
+        </body>
+    </html>
+    """
+
+
+@app.route("/video_feed")
+def video_feed():
+    """Stream MJPEG frames from latest_frame"""
+
+    def generate():
+        while True:
+            frame_bytes = None
+            with frame_lock:
+                if latest_frame is not None:
+                    # Encode frame as JPEG
+                    _, jpeg = cv2.imencode(".jpg", latest_frame)
+                    frame_bytes = jpeg.tobytes()
+            if frame_bytes is not None:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
+                )
+            time.sleep(0.05)  # ~20fps
+
+    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+def start_web_server(web_port):
+    """Run Flask app on separate thread"""
+    app.run(
+        host="0.0.0.0", port=web_port, threaded=True, debug=False, use_reloader=False
+    )
+
+
+# --- END WEB SERVER INTEGRATION ---
 
 
 # pylint: disable=unused-argument
@@ -372,6 +426,7 @@ def usage(argv):
         ("-d/--display", "view footage live", False),
         ("-s/--save", "save live footage", False),
         ("-e/--email", "send email", False),
+        ("-w/--web PORT", "Start web server on port", False),
     )
 
     str_options = " ".join(
@@ -393,7 +448,7 @@ def usage(argv):
 def parse_arguments(argv):
     """Parse command line arguments"""
     # pylint: disable=global-statement
-    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE
+    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE, WEB_PORT, ENABLE_WEB
 
     passed_args = argv[1:]
 
@@ -410,6 +465,10 @@ def parse_arguments(argv):
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
             CONFIGURATION_FILE = passed_args[0]
+        elif passed_args[0] == "-w" or passed_args[0] == "--web":
+            ENABLE_WEB = True
+            passed_args.pop(0)
+            WEB_PORT = passed_args[0]
         else:
             eprint(f"Invalid option: {passed_args[0]}")
             usage(argv)
@@ -476,6 +535,12 @@ if __name__ == "__main__":
     )
     stream_reader_thread.start()
 
+    if ENABLE_WEB:
+        web_thread = threading.Thread(
+            target=start_web_server, args=(WEB_PORT,), daemon=True
+        )
+        web_thread.start()
+
     if SAVE_VIDEO:
         output_video_path = configuration["rtsp"]["save_video"]["path"]
         output_video_name = configuration["rtsp"]["save_video"]["name"]
@@ -520,6 +585,10 @@ if __name__ == "__main__":
 
         # Run model on frame
         video_frame, PERSON_DETECTED = process_frame(video_frame, CONFIDENCE_MIN)
+
+        if ENABLE_WEB:
+            with frame_lock:
+                latest_frame = video_frame.copy()
 
         # Send email
         if SEND_EMAIL:
@@ -597,6 +666,7 @@ if __name__ == "__main__":
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
+    web_thread.join(timeout=2)
 
     # Stop writer
     if SAVE_VIDEO:
