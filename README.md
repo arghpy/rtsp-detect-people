@@ -29,27 +29,30 @@ For people who would like to send an email via Gmail, the following is required:
 ## Running
 
 ```bash
-./rtsp_detect_people.py -c/--config FILE [-h/--help] [-d/--display] [-s/--save] [-e/--email]
+rtsp_detect_people.py -c/--config FILE [-h/--help] [-d/--display] [-s/--save] [-e/--email] [-w/--web PORT]
 
 DESCRIPTION
-        Detect people from RTSP stream.
+       Detect people from RTSP stream.
 
 OPTIONS
 
 -c/--config FILE,
-        specify configuration file
+       specify configuration file
 
 -h/--help,
-        print this help message
+       print this help message
 
 -d/--display,
-        view footage live
+       view footage live
 
 -s/--save,
-        save live footage
+       save live footage
 
 -e/--email,
-        send email
+       send email
+
+-w/--web PORT,
+       Start web server on port
 ```
 
 Options:
@@ -61,6 +64,9 @@ in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-seco
 - **-e/--email**: send email
 
 ## Notes
+
+If using docker, don't forget to pass the ports between the container and host, in order to be able
+to view the live stream.
 
 In case the connection to the camera is lost, it will try to reconnect indefinitely.
 
