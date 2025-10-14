@@ -600,10 +600,7 @@ if __name__ == "__main__":
             SAVE_IMAGE_PATH = f"{output_video_path}/captures"
             SAVE_IMAGE_NAME = configuration["rtsp"]["save_video"]["name"]
             SAVE_IMAGE_NAME = (
-                f"{SAVE_IMAGE_NAME}"
-                f"_{minute}"
-                f":{second}"
-                f".{SAVE_IMAGE_TYPE}"
+                f"{SAVE_IMAGE_NAME}" f"_{minute}" f":{second}" f".{SAVE_IMAGE_TYPE}"
             )
             SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
             rc = cv2.imwrite(SAVE_IMAGE, video_frame)
