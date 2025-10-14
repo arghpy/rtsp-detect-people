@@ -608,8 +608,11 @@ if __name__ == "__main__":
                 f".{SAVE_IMAGE_TYPE}"
             )
             SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
-            pprint(f"Saving image to {SAVE_IMAGE}")
-            cv2.imwrite(SAVE_IMAGE, video_frame)
+            rc = cv2.imwrite(SAVE_IMAGE, video_frame)
+            if rc:
+                pprint(f"Saved image to {SAVE_IMAGE}")
+            else:
+                eprint(f"Failed to save image to {SAVE_IMAGE}")
 
             if SEND_EMAIL:
                 email_future = executor.submit(
