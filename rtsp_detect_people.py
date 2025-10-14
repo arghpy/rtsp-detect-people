@@ -604,7 +604,7 @@ if __name__ == "__main__":
             SAVE_IMAGE_NAME = (
                 f"{SAVE_IMAGE_NAME}"
                 f"_{minute}"
-                f"_{second}"
+                f":{second}"
                 f".{SAVE_IMAGE_TYPE}"
             )
             SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
