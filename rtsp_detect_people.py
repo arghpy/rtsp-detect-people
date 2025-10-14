@@ -145,8 +145,6 @@ def send_email_report(save_image_path, save_image_type, config):
         s.login(config["email"]["user"], config["email"]["password"])
         s.send_message(msg)
 
-    os.remove(save_image_path)
-
 
 def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     """Write stream to file"""
