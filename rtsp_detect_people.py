@@ -120,12 +120,9 @@ def pprint(s):
     print(f"{datetime.now()}: {s}", file=sys.stdout, flush=True)
 
 
-def send_email_report(frame, image_type, config):
+def send_email_report(save_image_path, save_image_type, config):
     """Send email based on the environment variables"""
     pprint("Person detected. Sending email")
-
-    save_image_path = f"person.{image_type}"
-    cv2.imwrite(save_image_path, frame)
 
     # Create the container email message.
     msg = EmailMessage()
@@ -140,7 +137,7 @@ def send_email_report(frame, image_type, config):
         msg.add_attachment(
             img_data,
             maintype="image",
-            subtype=image_type,
+            subtype=save_image_type,
             filename=save_image_path,
         )
 
@@ -490,6 +487,7 @@ if __name__ == "__main__":
     second = now.second
 
     SAVE_IMAGE_TYPE = "jpeg"
+    SAVE_IMAGE_PATH = None
     OUT_VIDEO_WRITER = None
     # pylint: disable=invalid-name
     email_sent = False
@@ -542,8 +540,8 @@ if __name__ == "__main__":
         web_thread.start()
 
     if SAVE_VIDEO:
-        output_video_path = configuration["rtsp"]["save_video"]["path"]
         output_video_name = configuration["rtsp"]["save_video"]["name"]
+        output_video_path = configuration["rtsp"]["save_video"]["path"]
         output_video_path = (
             f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
         )
@@ -560,11 +558,13 @@ if __name__ == "__main__":
 
         output_video = f"{output_video_path}/{output_video_name}"
 
+        SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+
         try:
-            os.makedirs(output_video_path)
+            os.makedirs(SAVE_IMAGE_PATH)
         except FileExistsError:
-            # directory already exists
             pass
+
         OUT_VIDEO_WRITER = writer_stream(
             output_video, video_width, video_height, video_fps
         )
@@ -586,10 +586,6 @@ if __name__ == "__main__":
         # Run model on frame
         video_frame, PERSON_DETECTED = process_frame(video_frame, CONFIDENCE_MIN)
 
-        if ENABLE_WEB:
-            with frame_lock:
-                latest_frame = video_frame.copy()
-
         # Send email
         if SEND_EMAIL:
             if email_sent and email_future is not None:
@@ -598,15 +594,36 @@ if __name__ == "__main__":
                     email_sent = False
                     email_future = None
 
-            if PERSON_DETECTED and (time.time() - start_timeout) > TIMEOUT:
+        if PERSON_DETECTED and (time.time() - start_timeout) > TIMEOUT:
+            now = datetime.now()
+            minute = now.minute
+            second = now.second
+
+            SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+            SAVE_IMAGE_NAME = configuration["rtsp"]["save_video"]["name"]
+            SAVE_IMAGE_NAME = (
+                f"{SAVE_IMAGE_NAME}"
+                f"_{minute}"
+                f"_{second}"
+                f".{SAVE_IMAGE_TYPE}"
+            )
+            SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
+            cv2.imwrite(SAVE_IMAGE, video_frame)
+
+            if SEND_EMAIL:
                 email_future = executor.submit(
                     send_email_report,
-                    video_frame.copy(),
+                    SAVE_IMAGE,
                     SAVE_IMAGE_TYPE,
                     configuration,
                 )
                 email_sent = True
-                start_timeout = time.time()
+
+            start_timeout = time.time()
+
+        if ENABLE_WEB:
+            with frame_lock:
+                latest_frame = video_frame.copy()
 
         # Show display
         if SHOW_DISPLAY:
@@ -632,13 +649,14 @@ if __name__ == "__main__":
                 minute = now.minute
                 second = now.second
 
+                output_video_name = configuration["rtsp"]["save_video"]["name"]
                 output_video_path = configuration["rtsp"]["save_video"]["path"]
                 output_video_path = (
                     f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
                 )
 
                 output_video_name = (
-                    f"front_from_{year}"
+                    f"{output_video_name}_{year}"
                     f"-{month}"
                     f"-{day}"
                     f"_{hour}"
@@ -649,10 +667,11 @@ if __name__ == "__main__":
 
                 output_video = f"{output_video_path}/{output_video_name}"
 
+                SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+
                 try:
-                    os.makedirs(output_video_path)
+                    os.makedirs(SAVE_IMAGE_PATH)
                 except FileExistsError:
-                    # directory already exists
                     pass
 
                 OUT_VIDEO_WRITER = writer_stream(
