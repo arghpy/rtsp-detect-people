@@ -150,7 +150,7 @@ def send_email_report(save_image_path, save_image_type, config):
 
 def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     """Write stream to file"""
-    pprint(f"Saving to {video_path}")
+    pprint(f"Saving video to {video_path}")
 
     writer_cmd = [
         "ffmpeg",
@@ -608,6 +608,7 @@ if __name__ == "__main__":
                 f".{SAVE_IMAGE_TYPE}"
             )
             SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
+            pprint(f"Saving image to {SAVE_IMAGE}")
             cv2.imwrite(SAVE_IMAGE, video_frame)
 
             if SEND_EMAIL:
