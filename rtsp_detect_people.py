@@ -37,6 +37,7 @@ SAVE_VIDEO = False
 SEND_EMAIL = False
 CONFIGURATION_FILE = None
 ENABLE_WEB = False
+ENABLE_DETECTION = False
 WEB_PORT = None
 
 # Other globals
@@ -422,6 +423,7 @@ def usage(argv):
         ("-s/--save", "save live footage", False),
         ("-e/--email", "send email", False),
         ("-w/--web PORT", "Start web server on port", False),
+        ("--detect", "detect people", False),
     )
 
     str_options = " ".join(
@@ -443,7 +445,7 @@ def usage(argv):
 def parse_arguments(argv):
     """Parse command line arguments"""
     # pylint: disable=global-statement
-    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE, WEB_PORT, ENABLE_WEB
+    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE, WEB_PORT, ENABLE_WEB, ENABLE_DETECTION
 
     passed_args = argv[1:]
 
@@ -464,6 +466,8 @@ def parse_arguments(argv):
             ENABLE_WEB = True
             passed_args.pop(0)
             WEB_PORT = passed_args[0]
+        elif passed_args[0] == "--detect":
+            ENABLE_DETECTION = True
         else:
             eprint(f"Invalid option: {passed_args[0]}")
             usage(argv)
@@ -502,6 +506,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     configuration = load_json_file(CONFIGURATION_FILE)
+    PERSON_DETECTED = False
     TIMEOUT = int(configuration["timeout"])  # Secs
     CONFIDENCE_MIN = float(configuration["confidence"])
     RTSP_USER = configuration["rtsp"]["user"]
@@ -582,7 +587,8 @@ if __name__ == "__main__":
             continue
 
         # Run model on frame
-        video_frame, PERSON_DETECTED = process_frame(video_frame, CONFIDENCE_MIN)
+        if ENABLE_DETECTION:
+            video_frame, PERSON_DETECTED = process_frame(video_frame, CONFIDENCE_MIN)
 
         # Send email
         if SEND_EMAIL:
