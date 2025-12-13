@@ -105,14 +105,31 @@ def start_web_server(web_port):
 # pylint: disable=unused-argument
 def handle_signals(signum, exec_frame):
     """Respond to different signals"""
+    global STOP_EVENT
+
     signame = signal.Signals(signum).name
     pprint(f"Received {signame}({signum})")
 
-    if signum == signal.SIGINT:
-        pprint("Exiting")
-        sys.exit(1)
+    # Release and close threading
+    executor.shutdown(wait=True)
+
+    # Stop reader
+    STOP_EVENT.set()
+    stream_reader_thread.join(timeout=2)
+    web_thread.join(timeout=2)
+
+    # Stop writer
+    if SAVE_VIDEO:
+        OUT_VIDEO_WRITER.stdin.close()
+        OUT_VIDEO_WRITER.wait()
+
+    # Destroy window if display was set
+    if SHOW_DISPLAY:
+        cv2.destroyAllWindows()
+    sys.exit(0)
 
 
+signal.signal(signal.SIGTERM, handle_signals)
 signal.signal(signal.SIGINT, handle_signals)
 
 
