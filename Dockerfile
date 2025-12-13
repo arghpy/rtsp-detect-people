@@ -1,5 +1,5 @@
 # Start from the official Ultralytics image
-FROM ultralytics/ultralytics:8.1.0-cuda12
+FROM ultralytics/ultralytics:8.3.95-nvidia-cuda
 
 # Install ffmpeg (Debian-based image)
 RUN apt-get update\
