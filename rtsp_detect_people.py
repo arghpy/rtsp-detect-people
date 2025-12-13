@@ -25,6 +25,11 @@ from ultralytics import YOLO
 
 # Load YOLOv8n model (it will auto-download if missing)
 model = YOLO("yolov8n.pt")
+try:
+    model.to("cuda")        # Move model to GPU
+except Exception as e:
+    print(f"[ERROR] Failed to initialize YOLO model: {e}", file=sys.stderr)
+    sys.exit(1)
 
 # Font settings
 FONT_NAME = cv2.FONT_HERSHEY_SIMPLEX
@@ -357,7 +362,9 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
 def process_frame(frame, confidence):
     """Process frame with yolo model"""
     person_detected = False
-    results = model(frame, conf=CONFIDENCE_MIN, verbose=False)
+
+    # half=True - Enable FP16 for faster inference
+    results = model(frame, conf=CONFIDENCE_MIN, verbose=False, half=True)
 
     for result in results:
         boxes = result.boxes
