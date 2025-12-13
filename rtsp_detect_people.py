@@ -172,10 +172,8 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
         "-i",
         "-",
         "-an",  # no audio
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
+        "-c:v", "h264_nvenc",  # NVENC encoder
+        "-preset", "llhp",     # low-latency high performance
         "-g",
         f"{fps*2}",  # keyframe every 2 seconds
         "-x264-params",
@@ -213,6 +211,7 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
 
     reader_cmd = [
         "ffmpeg",
+        "-hwaccel", "cuda",  # enable GPU hardware acceleration
         "-rtsp_transport",
         "tcp",
         "-i",
