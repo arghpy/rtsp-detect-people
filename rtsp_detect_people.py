@@ -25,11 +25,13 @@ from ultralytics import YOLO
 
 # Load YOLOv8n model (it will auto-download if missing)
 model = YOLO("yolov8n.pt")
+CUDA_ENABLED = False
 try:
     model.to("cuda")        # Move model to GPU
+    CUDA_ENABLED = True
 except Exception as e:
-    print(f"[ERROR] Failed to initialize YOLO model: {e}", file=sys.stderr)
-    sys.exit(1)
+    print(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}", file=sys.stderr)
+    print("Continuing with cpu detection.", file=sys.stderr)
 
 # Font settings
 FONT_NAME = cv2.FONT_HERSHEY_SIMPLEX
@@ -189,8 +191,13 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
         "-i",
         "-",
         "-an",  # no audio
-        "-c:v", "h264_nvenc",  # NVENC encoder
-        "-preset", "llhp",     # low-latency high performance
+    ]
+    if CUDA_ENABLED:
+        writer_cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
+    else:
+        writer_cmd.extend(["-c:v", "libx264", "-preset", "veryfast"])
+
+    writer_cmd.extend([
         "-g",
         f"{fps*2}",  # keyframe every 2 seconds
         "-x264-params",
@@ -200,7 +207,7 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
         "-f",
         "matroska",
         video_path,
-    ]
+    ])
     # pylint: disable=consider-using-with
     writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE)
     return writer
@@ -228,7 +235,10 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
 
     reader_cmd = [
         "ffmpeg",
-        "-hwaccel", "cuda",  # enable GPU hardware acceleration
+    ]
+    if CUDA_ENABLED:
+        reader_cmd.extend(["-hwaccel", "cuda"])
+    reader_cmd.extend([
         "-rtsp_transport",
         "tcp",
         "-i",
@@ -242,7 +252,8 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
         "-pix_fmt",
         "bgr24",
         "-",
-    ]
+    ])
+
     # pylint: disable=consider-using-with
     reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE)
     return reader
