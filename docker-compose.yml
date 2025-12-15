@@ -16,5 +16,5 @@ services:
         "--save",
         "--email",
         "--detect",
-        "-web", "5000"
+        "--web", "5000"
       ]
