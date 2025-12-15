@@ -6,22 +6,15 @@ services:
     volumes:
       - ./:/usr/src/app
     working_dir: /usr/src/app
+    ports:
+      - 5000:5000
     command:
       [
         "python3",
         "rtsp_detect_people.py",
-        "--config",
-        "config.json",
+        "--config", "config.json",
         "--save",
         "--email",
         "--detect",
+        "-web", "5000"
       ]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
