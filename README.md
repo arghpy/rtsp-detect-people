@@ -66,6 +66,40 @@ in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-seco
 If using docker, don't forget to pass the ports between the container and host, in order to be able
 to view the live stream.
 
+If you have a CUDA capable gpu, use this docker compose file:
+```yaml
+services:
+  rtsp_detect:
+    build: .
+    user: 1000:1000
+    restart: unless-stopped
+    volumes:
+      - ./:/usr/src/app
+    working_dir: /usr/src/app
+    ports:
+      - 5000:5000
+    command:
+      [
+        "python3",
+        "rtsp_detect_people.py",
+        "--config",
+        "config.json",
+        "--save",
+        "--email",
+        "--detect",
+        "--web", "5000"
+      ]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+```
+
 In case the connection to the camera is lost, it will try to reconnect indefinitely.
 
 The timeout set in the configuration file represents the timeout in seconds between emails sent,
