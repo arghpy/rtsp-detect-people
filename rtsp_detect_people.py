@@ -12,13 +12,14 @@ import subprocess
 import sys
 import threading
 import time
+import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from email.message import EmailMessage
 
 import cv2
 import numpy as np
-from flask import Flask, Response
+from flask import Flask, send_from_directory
 
 # pylint: disable=import-error
 from ultralytics import YOLO
@@ -51,46 +52,61 @@ WEB_PORT = None
 MAX_FRAME_DROPS = 5
 BOX_COLOR = (0, 255, 0)  # (B, G, R) colors - Green
 CONFIDENCE_MIN = None
+HLS_DIR = "/tmp/hls"
+HLS_WRITER = None
 
 # --- WEB SERVER GLOBALS ---
-latest_jpeg = None
-jpeg_lock = threading.Lock()
-
 app = Flask(__name__)
 
 
 @app.route("/")
 def index():
     return """
-    <html>
-        <head><title>RTSP Stream</title></head>
-        <body style="background-color:black;text-align:center;">
-            <h2 style="color:white;">Live RTSP Stream</h2>
-            <img src="/video_feed" width="100%" />
-        </body>
-    </html>
-    """
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RTSP HLS Stream</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body style="margin:0; background:black">
+  <video id="video" autoplay muted playsinline width="100%"></video>
+
+  <script>
+    const video = document.getElementById('video');
+    const src = '/hls/stream.m3u8';
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        lowLatencyMode: true,
+        backBufferLength: 30
+      });
+      hls.loadSource(src);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = src; // Safari
+    }
+  </script>
+</body>
+</html>
+"""
 
 
-@app.route("/video_feed")
-def video_feed():
-    """Stream MJPEG frames from latest_frame"""
+@app.route("/hls/<path:filename>")
+def hls_files(filename):
+    return send_from_directory(HLS_DIR, filename)
 
-    def generate():
-        while True:
-            with jpeg_lock:
-                frame_bytes = latest_jpeg
-            if not frame_bytes:
-                time.sleep(0.1)
-                continue
-            if frame_bytes:
-                yield (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
-                )
-            time.sleep(0.05)  # ~20fps
 
-    return Response(generate(), mimetype="multipart/x-mixed-replace; boundary=frame")
+@app.after_request
+def disable_hls_cache(response):
+    if response.mimetype in (
+        "application/vnd.apple.mpegurl",
+        "video/mp2t",
+    ):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 def start_web_server(web_port):
@@ -101,6 +117,38 @@ def start_web_server(web_port):
 
 
 # --- END WEB SERVER INTEGRATION ---
+
+def hls_writer(output_dir, width, height, fps):
+    os.makedirs(output_dir, exist_ok=True)
+
+    cmd = [
+        "ffmpeg",
+        "-loglevel", "error",
+        "-y",
+        "-f", "rawvideo",
+        "-pix_fmt", "bgr24",
+        "-s", f"{width}x{height}",
+        "-r", str(fps),
+        "-i", "-",
+    ]
+
+    if CUDA_ENABLED:
+        cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
+    else:
+        cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency"])
+
+    cmd.extend([
+        "-pix_fmt", "yuv420p",
+        "-f", "hls",
+        "-hls_time", "1",
+        "-hls_list_size", "3",
+        "-hls_allow_cache", "0",
+        "-hls_flags", "delete_segments+append_list",
+        "-hls_playlist_type", "event",
+        os.path.join(output_dir, "stream.m3u8"),
+    ])
+
+    return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 
 # pylint: disable=unused-argument
@@ -127,6 +175,8 @@ def handle_signals(signum, exec_frame):
     # Destroy window if display was set
     if SHOW_DISPLAY:
         cv2.destroyAllWindows()
+
+    shutil.rmtree(HLS_DIR, ignore_errors=True)
     sys.exit(0)
 
 
@@ -571,6 +621,7 @@ if __name__ == "__main__":
     stream_reader_thread.start()
 
     if ENABLE_WEB:
+        HLS_WRITER = hls_writer(HLS_DIR, video_width, video_height, video_fps)
         web_thread = threading.Thread(
             target=start_web_server, args=(WEB_PORT,), daemon=True
         )
@@ -660,10 +711,7 @@ if __name__ == "__main__":
             start_timeout = time.time()
 
         if ENABLE_WEB:
-            # Encode frame as JPEG
-            _, jpeg = cv2.imencode(".jpg", video_frame)
-            with jpeg_lock:
-                latest_jpeg = jpeg.tobytes()
+            HLS_WRITER.stdin.write(video_frame.tobytes())
 
         # Show display
         if SHOW_DISPLAY:
@@ -735,3 +783,5 @@ if __name__ == "__main__":
     # Destroy window if display was set
     if SHOW_DISPLAY:
         cv2.destroyAllWindows()
+
+    shutil.rmtree(HLS_DIR, ignore_errors=True)
