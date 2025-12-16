@@ -275,7 +275,8 @@ def read_frame(pipe: subprocess.Popen, width, height) -> np.ndarray | None:
     if raw is None or len(raw) != size:
         return None
 
-    return np.frombuffer(raw, np.uint8).reshape((height, width, 3))
+    frame = np.frombuffer(raw, np.uint8).reshape((height, width, 3))
+    return frame.copy()
 
 
 def reader_stream(rtsp_url, fps) -> subprocess.Popen:
