@@ -53,8 +53,8 @@ BOX_COLOR = (0, 255, 0)  # (B, G, R) colors - Green
 CONFIDENCE_MIN = None
 
 # --- WEB SERVER GLOBALS ---
-latest_frame = None
-frame_lock = threading.Lock()
+latest_jpeg = None
+jpeg_lock = threading.Lock()
 
 app = Flask(__name__)
 
@@ -78,13 +78,9 @@ def video_feed():
 
     def generate():
         while True:
-            frame_bytes = None
-            with frame_lock:
-                if latest_frame is not None:
-                    # Encode frame as JPEG
-                    _, jpeg = cv2.imencode(".jpg", latest_frame)
-                    frame_bytes = jpeg.tobytes()
-            if frame_bytes is not None:
+            with jpeg_lock:
+                frame_bytes = latest_jpeg
+            if frame_bytes:
                 yield (
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
@@ -610,7 +606,6 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         video_frame = FRAME_QUEUE.get(block=True)  # Wait until a frame is available
-        video_frame = video_frame.copy()
 
         # Check for corrupt frame
         if (
@@ -662,8 +657,10 @@ if __name__ == "__main__":
             start_timeout = time.time()
 
         if ENABLE_WEB:
-            with frame_lock:
-                latest_frame = video_frame.copy()
+            # Encode frame as JPEG
+            _, jpeg = cv2.imencode(".jpg", video_frame)
+            with jpeg_lock:
+                latest_jpeg = jpeg.tobytes()
 
         # Show display
         if SHOW_DISPLAY:
