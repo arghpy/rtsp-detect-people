@@ -138,13 +138,17 @@ def hls_writer(output_dir, width, height, fps):
         cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency"])
 
     cmd.extend([
+        "-g", str(int(fps * 0.5)),
+        "-keyint_min", str(int(fps * 0.5)),
+        "-sc_threshold", "0",
+
         "-pix_fmt", "yuv420p",
+
         "-f", "hls",
-        "-hls_time", "1",
-        "-hls_list_size", "3",
+        "-hls_time", "0.5",
+        "-hls_list_size", "2",
+        "-hls_flags", "delete_segments+append_list+independent_segments",
         "-hls_allow_cache", "0",
-        "-hls_flags", "delete_segments+append_list",
-        "-hls_playlist_type", "event",
         os.path.join(output_dir, "stream.m3u8"),
     ])
 
