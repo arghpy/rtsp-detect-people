@@ -387,7 +387,7 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
     return width, height, fps
 
 
-def process_frame(frame, confidence):
+def process_frame(frame):
     """Process frame with yolo model"""
     person_detected = False
 
@@ -623,7 +623,7 @@ if __name__ == "__main__":
 
         # Run model on frame
         if ENABLE_DETECTION:
-            video_frame, PERSON_DETECTED = process_frame(video_frame, CONFIDENCE_MIN)
+            video_frame, PERSON_DETECTED = process_frame(video_frame)
 
         # Send email
         if SEND_EMAIL:
