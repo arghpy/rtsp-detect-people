@@ -25,12 +25,14 @@ from flask import Flask, send_from_directory
 from ultralytics import YOLO
 
 # Load YOLOv8n model (it will auto-download if missing)
-model = YOLO("yolov8n.pt")
+model = None
 CUDA_ENABLED = False
 try:
+    model = YOLO("yolov8m.pt")
     model.to("cuda")        # Move model to GPU
     CUDA_ENABLED = True
 except Exception as e:
+    model = YOLO("yolov8n.pt")
     print(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}", file=sys.stderr)
     print("Continuing with cpu detection.", file=sys.stderr)
 
