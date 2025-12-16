@@ -229,7 +229,7 @@ def read_frame(pipe: subprocess.Popen, width, height) -> np.ndarray | None:
     return np.frombuffer(raw, np.uint8).reshape((height, width, 3))
 
 
-def reader_stream(rtsp_url) -> subprocess.Popen:
+def reader_stream(rtsp_url, fps) -> subprocess.Popen:
     """Continuously get frames from stream"""
     pprint("Starting ffmpeg reader")
 
@@ -245,6 +245,7 @@ def reader_stream(rtsp_url) -> subprocess.Popen:
         rtsp_url,
         "-loglevel",
         "error",
+        "-vf", f"fps={fps}",
         "-an",
         "-sn",  # disable audio and subs
         "-f",
@@ -272,7 +273,7 @@ def terminate_pipe_process(pipe: subprocess.Popen):
         pipe.kill()
 
 
-def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url):
+def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url, fps):
     """Safely reconnect to stream, retry until ffmpeg is alive."""
     terminate_pipe_process(pipe)
 
@@ -281,7 +282,7 @@ def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url):
         attempt += 1
         eprint(f"Reconnecting attempt #{attempt}...")
 
-        new_pipe = reader_stream(rtsp_url)
+        new_pipe = reader_stream(rtsp_url, fps)
         time.sleep(1.0)  # give ffmpeg a moment to start
 
         if new_pipe and new_pipe.poll() is None and new_pipe.stdout:
@@ -298,7 +299,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     """Continuously add frames in queue to be processed"""
     pprint("Reader thread started")
 
-    pipe = reader_stream(rtsp_url)
+    pipe = reader_stream(rtsp_url, fps)
     if pipe is None or pipe.returncode is not None:
         stop_event.set()
 
@@ -319,7 +320,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
 
             if dropped_frames >= fps * 2:
                 eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
-                pipe = reconnect_pipe_process(pipe, rtsp_url)
+                pipe = reconnect_pipe_process(pipe, rtsp_url, fps)
                 dropped_frames = 0
         else:
             dropped_frames = 0
