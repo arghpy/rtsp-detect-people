@@ -70,7 +70,7 @@ def index():
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body style="margin:0; background:black">
-  <video id="video" autoplay muted playsinline width="100%"></video>
+  <video id="video" controls autoplay muted playsinline width="100%"></video>
 
   <script>
     const video = document.getElementById('video');
