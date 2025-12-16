@@ -80,6 +80,9 @@ def video_feed():
         while True:
             with jpeg_lock:
                 frame_bytes = latest_jpeg
+            if not frame_bytes:
+                time.sleep(0.1)
+                continue
             if frame_bytes:
                 yield (
                     b"--frame\r\n"
