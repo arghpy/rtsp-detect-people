@@ -1,6 +1,7 @@
 {
   "timeout": "<int>",
   "confidence": "<float_between_0_1>",
+  "model": "yolo11n.pt",
   "rtsp": {
     "feed": "<IP>",
     "user": "<USER>",

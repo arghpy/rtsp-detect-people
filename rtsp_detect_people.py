@@ -27,14 +27,6 @@ from ultralytics import YOLO
 # Load YOLOv8n model (it will auto-download if missing)
 model = None
 CUDA_ENABLED = False
-try:
-    model = YOLO("yolov8m.pt")
-    model.to("cuda")        # Move model to GPU
-    CUDA_ENABLED = True
-except Exception as e:
-    model = YOLO("yolov8n.pt")
-    print(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}", file=sys.stderr)
-    print("Continuing with cpu detection.", file=sys.stderr)
 
 # Font settings
 FONT_NAME = cv2.FONT_HERSHEY_SIMPLEX
@@ -599,11 +591,20 @@ if __name__ == "__main__":
     configuration = load_json_file(CONFIGURATION_FILE)
     PERSON_DETECTED = False
     TIMEOUT = int(configuration["timeout"])  # Secs
+    MODEL = configuration["model"]
     CONFIDENCE_MIN = float(configuration["confidence"])
     RTSP_USER = configuration["rtsp"]["user"]
     RTSP_PASSWORD = configuration["rtsp"]["password"]
     RTSP_FEED = configuration["rtsp"]["feed"]
     RTSP_URL = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{RTSP_FEED}"
+
+    model = YOLO(MODEL)
+    try:
+        model.to("cuda")  # Enable GPU
+        CUDA_ENABLED = True
+    except Exception as e:
+        print(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}", file=sys.stderr)
+        print("Continuing with cpu detection.", file=sys.stderr)
 
     # Frame and properties
     video_width, video_height, video_fps = probe_stream(RTSP_URL)
