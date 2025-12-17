@@ -19,5 +19,14 @@
     "port": "<PORT>",
     "subject": "<SUBJECT>",
     "recipients": ["<EMAIL_1>", "<EMAIL_2>"]
+  },
+  "home-assistant": {
+    "base_http_url": "<url>",
+    "port": "<port>",
+    "token": "<token>",
+    "entity": {
+      "type": "<type>",
+      "id": "<id>"
+    }
   }
 }

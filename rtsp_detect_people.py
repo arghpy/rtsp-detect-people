@@ -19,6 +19,7 @@ from email.message import EmailMessage
 
 import cv2
 import numpy as np
+import requests
 from flask import Flask, send_from_directory
 
 # pylint: disable=import-error
@@ -558,6 +559,17 @@ def parse_arguments(argv):
         passed_args.pop(0)
 
 
+def ha_trigger_boolean(url, headers, entity_id, request: bool):
+    state = "turn_on" if request else "turn_off"
+    url = f"{url}/{state}"
+    payload = {
+        "entity_id": f"{entity_id}"
+    }
+
+    response = requests.post(url, headers=HA_HEADERS, json=payload)
+    response.raise_for_status()
+
+
 if __name__ == "__main__":
     parse_arguments(sys.argv)
 
@@ -588,15 +600,32 @@ if __name__ == "__main__":
         usage(sys.argv)
         sys.exit(1)
 
-    configuration = load_json_file(CONFIGURATION_FILE)
     PERSON_DETECTED = False
+    OCCUPANCY = False
+
+    configuration = load_json_file(CONFIGURATION_FILE)
+    # General
     TIMEOUT = int(configuration["timeout"])  # Secs
     MODEL = configuration["model"]
     CONFIDENCE_MIN = float(configuration["confidence"])
+
+    # RTSP
     RTSP_USER = configuration["rtsp"]["user"]
     RTSP_PASSWORD = configuration["rtsp"]["password"]
     RTSP_FEED = configuration["rtsp"]["feed"]
     RTSP_URL = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{RTSP_FEED}"
+
+    # Home Assistant
+    HA_TOKEN = configuration["home-assistant"]["token"]
+    HA_URL = configuration["home-assistant"]["base_http_url"]
+    HA_PORT = configuration["home-assistant"]["port"]
+    HA_ENTITY_ID = configuration["home-assistant"]["entity"]["id"]
+    HA_ENTITY_TYPE = configuration["home-assistant"]["entity"]["type"]
+    HA_URL = f"{HA_URL}/api/services/{HA_ENTITY_TYPE}"
+    HA_HEADERS = {
+        "Authorization": f"Bearer {HA_TOKEN}",
+        "Content-Type": "application/json",
+    }
 
     model = YOLO(MODEL)
     try:
@@ -689,6 +718,14 @@ if __name__ == "__main__":
                     pprint("Email sent")
                     email_sent = False
                     email_future = None
+
+        # Home assistant triggers
+        if PERSON_DETECTED and not OCCUPANCY:
+            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, True)
+            OCCUPANCY = True
+        elif not PERSON_DETECTED and OCCUPANCY:
+            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, False)
+            OCCUPANCY = False
 
         if PERSON_DETECTED and (time.time() - start_timeout) > TIMEOUT:
             now = datetime.now()
