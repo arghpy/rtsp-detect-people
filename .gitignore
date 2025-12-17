@@ -1,6 +1,6 @@
 test-config.json
 mobilenet-ssd/
-yolov*
+yolo*
 person.jpeg
 node_modules/
 package-lock.json
