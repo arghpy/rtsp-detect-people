@@ -22,7 +22,6 @@
   },
   "home-assistant": {
     "base_http_url": "<url>",
-    "port": "<port>",
     "token": "<token>",
     "entity": {
       "type": "<type>",

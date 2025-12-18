@@ -439,7 +439,6 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
 def process_frame(frame):
     """Process frame with yolo model"""
     person_detected = False
-    gesture_detected = False
 
     # half=True - Enable FP16 for faster inference
     results = model(frame, conf=CONFIDENCE_MIN, verbose=False, half=True)
@@ -462,11 +461,8 @@ def process_frame(frame):
                     (0, 255, 0),
                     2,
                 )
-        if hand_raised(result):
-            pprint("Hand raised")
-            gesture_detected = True
 
-    return frame, person_detected, gesture_detected
+    return frame, person_detected
 
 
 def load_json_file(file):
@@ -575,40 +571,6 @@ def ha_trigger_boolean(url, headers, entity_id, request: bool):
     response.raise_for_status()
 
 
-def hand_raised(result) -> bool:
-    if result.keypoints is None:
-        return False
-
-    if len(result.keypoints.xy) == 0:
-        return False
-
-    kp = result.keypoints.xy[0]
-    conf = result.keypoints.conf[0] if result.keypoints.conf is not None else None
-
-    if kp.shape[0] < 11:
-        return False
-
-    LEFT_SHOULDER = 5
-    RIGHT_SHOULDER = 6
-    LEFT_WRIST = 9
-    RIGHT_WRIST = 10
-
-    MIN_CONF = 0.6
-    VERTICAL_MARGIN = 40  # pixels (adjust!)
-
-    left_up = (
-        kp[LEFT_WRIST][1] + VERTICAL_MARGIN < kp[LEFT_SHOULDER][1]
-        and (conf is None or conf[LEFT_WRIST] > MIN_CONF)
-    )
-
-    right_up = (
-        kp[RIGHT_WRIST][1] + VERTICAL_MARGIN < kp[RIGHT_SHOULDER][1]
-        and (conf is None or conf[RIGHT_WRIST] > MIN_CONF)
-    )
-
-    return left_up or right_up
-
-
 if __name__ == "__main__":
     parse_arguments(sys.argv)
 
@@ -640,10 +602,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     PERSON_DETECTED = False
-    GESTURE_DETECTED = False
-    GESTURE_ACTIVE = False
-    HAND_RAISE_START = None
-    HAND_RAISE_HOLD = 0.8  # seconds
+    OCCUPANCY_DETECTED = False
     TOGGLE_LIGHT = False
 
     configuration = load_json_file(CONFIGURATION_FILE)
@@ -661,7 +620,6 @@ if __name__ == "__main__":
     # Home Assistant
     HA_TOKEN = configuration["home-assistant"]["token"]
     HA_URL = configuration["home-assistant"]["base_http_url"]
-    HA_PORT = configuration["home-assistant"]["port"]
     HA_ENTITY_ID = configuration["home-assistant"]["entity"]["id"]
     HA_ENTITY_TYPE = configuration["home-assistant"]["entity"]["type"]
     HA_URL = f"{HA_URL}/api/services/{HA_ENTITY_TYPE}"
@@ -752,31 +710,25 @@ if __name__ == "__main__":
 
         # Run model on frame
         if ENABLE_DETECTION:
-            video_frame, PERSON_DETECTED, GESTURE_DETECTED = process_frame(video_frame)
+            video_frame, PERSON_DETECTED = process_frame(video_frame)
 
         now_ts = time.time()
 
-        if GESTURE_DETECTED:
-            if not GESTURE_ACTIVE:
-                # First frame of hand raised
-                if HAND_RAISE_START is None:
-                    HAND_RAISE_START = now_ts
-                elif (now_ts - HAND_RAISE_START) >= HAND_RAISE_HOLD:
-                    # Toggle once
-                    TOGGLE_LIGHT = not TOGGLE_LIGHT
-                    ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, not TOGGLE_LIGHT)
-                    GESTURE_ACTIVE = True  # prevent more toggles until hand lowered
-        else:
-            HAND_RAISE_START = None
-            GESTURE_ACTIVE = False  # reset when hand is down
-
         # Send email
-        if SEND_EMAIL:
-            if email_sent and email_future is not None:
-                if email_future.done():
-                    pprint("Email sent")
-                    email_sent = False
-                    email_future = None
+        if email_sent and email_future is not None:
+            if email_future.done():
+                pprint("Email sent")
+                email_sent = False
+                email_future = None
+
+        if PERSON_DETECTED and not OCCUPANCY_DETECTED:
+            OCCUPANCY_DETECTED = True
+            TOGGLE_LIGHT = not TOGGLE_LIGHT
+            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, TOGGLE_LIGHT)
+        elif not PERSON_DETECTED and OCCUPANCY_DETECTED:
+            OCCUPANCY_DETECTED = False
+            TOGGLE_LIGHT = not TOGGLE_LIGHT
+            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, TOGGLE_LIGHT)
 
         if PERSON_DETECTED and (time.time() - start_timeout) > TIMEOUT:
             now = datetime.now()
