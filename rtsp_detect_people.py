@@ -641,6 +641,7 @@ if __name__ == "__main__":
 
     PERSON_DETECTED = False
     GESTURE_DETECTED = False
+    GESTURE_ACTIVE = False
     HAND_RAISE_START = None
     HAND_RAISE_HOLD = 0.8  # seconds
     TOGGLE_LIGHT = False
@@ -756,15 +757,18 @@ if __name__ == "__main__":
         now_ts = time.time()
 
         if GESTURE_DETECTED:
-            if HAND_RAISE_START is None:
-                HAND_RAISE_START = now_ts
-            elif (now_ts - HAND_RAISE_START) >= HAND_RAISE_HOLD:
-                # Toggle once
-                TOGGLE_LIGHT = not TOGGLE_LIGHT
-                ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, not TOGGLE_LIGHT)
-                HAND_RAISE_START = None
+            if not GESTURE_ACTIVE:
+                # First frame of hand raised
+                if HAND_RAISE_START is None:
+                    HAND_RAISE_START = now_ts
+                elif (now_ts - HAND_RAISE_START) >= HAND_RAISE_HOLD:
+                    # Toggle once
+                    TOGGLE_LIGHT = not TOGGLE_LIGHT
+                    ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, not TOGGLE_LIGHT)
+                    GESTURE_ACTIVE = True  # prevent more toggles until hand lowered
         else:
             HAND_RAISE_START = None
+            GESTURE_ACTIVE = False  # reset when hand is down
 
         # Send email
         if SEND_EMAIL:
