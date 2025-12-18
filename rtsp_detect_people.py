@@ -463,6 +463,7 @@ def process_frame(frame):
                     2,
                 )
         if hand_raised(result):
+            pprint("Hand raised")
             gesture_detected = True
 
     return frame, person_detected, gesture_detected
