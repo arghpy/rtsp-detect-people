@@ -576,17 +576,15 @@ def ha_trigger_boolean(url, headers, entity_id, request: bool):
 
 
 def hand_raised(result) -> bool:
-    # No keypoints at all
     if result.keypoints is None:
         return False
 
-    # No person-level keypoints
     if len(result.keypoints.xy) == 0:
         return False
 
     kp = result.keypoints.xy[0]
+    conf = result.keypoints.conf[0] if result.keypoints.conf is not None else None
 
-    # Ensure we have enough keypoints (COCO = 17)
     if kp.shape[0] < 11:
         return False
 
@@ -595,10 +593,20 @@ def hand_raised(result) -> bool:
     LEFT_WRIST = 9
     RIGHT_WRIST = 10
 
-    left_hand_up = kp[LEFT_WRIST][1] < kp[LEFT_SHOULDER][1]
-    right_hand_up = kp[RIGHT_WRIST][1] < kp[RIGHT_SHOULDER][1]
+    MIN_CONF = 0.6
+    VERTICAL_MARGIN = 40  # pixels (adjust!)
 
-    return left_hand_up or right_hand_up
+    left_up = (
+        kp[LEFT_WRIST][1] + VERTICAL_MARGIN < kp[LEFT_SHOULDER][1]
+        and (conf is None or conf[LEFT_WRIST] > MIN_CONF)
+    )
+
+    right_up = (
+        kp[RIGHT_WRIST][1] + VERTICAL_MARGIN < kp[RIGHT_SHOULDER][1]
+        and (conf is None or conf[RIGHT_WRIST] > MIN_CONF)
+    )
+
+    return left_up or right_up
 
 
 if __name__ == "__main__":
@@ -633,6 +641,8 @@ if __name__ == "__main__":
 
     PERSON_DETECTED = False
     GESTURE_DETECTED = False
+    HAND_RAISE_START = None
+    HAND_RAISE_HOLD = 0.8  # seconds
     TOGGLE_LIGHT = False
 
     configuration = load_json_file(CONFIGURATION_FILE)
@@ -743,9 +753,18 @@ if __name__ == "__main__":
         if ENABLE_DETECTION:
             video_frame, PERSON_DETECTED, GESTURE_DETECTED = process_frame(video_frame)
 
+        now_ts = time.time()
+
         if GESTURE_DETECTED:
-            TOGGLE_LIGHT = not TOGGLE_LIGHT
-            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, TOGGLE_LIGHT)
+            if HAND_RAISE_START is None:
+                HAND_RAISE_START = now_ts
+            elif (now_ts - HAND_RAISE_START) >= HAND_RAISE_HOLD:
+                # Toggle once
+                TOGGLE_LIGHT = not TOGGLE_LIGHT
+                ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, not TOGGLE_LIGHT)
+                HAND_RAISE_START = None
+        else:
+            HAND_RAISE_START = None
 
         # Send email
         if SEND_EMAIL:
