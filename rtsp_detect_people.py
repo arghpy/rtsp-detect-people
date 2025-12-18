@@ -439,6 +439,7 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
 def process_frame(frame):
     """Process frame with yolo model"""
     person_detected = False
+    gesture_detected = False
 
     # half=True - Enable FP16 for faster inference
     results = model(frame, conf=CONFIDENCE_MIN, verbose=False, half=True)
@@ -461,7 +462,10 @@ def process_frame(frame):
                     (0, 255, 0),
                     2,
                 )
-    return frame, person_detected
+        if hand_raised(result):
+            gesture_detected = True
+
+    return frame, person_detected, gesture_detected
 
 
 def load_json_file(file):
@@ -570,6 +574,32 @@ def ha_trigger_boolean(url, headers, entity_id, request: bool):
     response.raise_for_status()
 
 
+def hand_raised(result) -> bool:
+    # No keypoints at all
+    if result.keypoints is None:
+        return False
+
+    # No person-level keypoints
+    if len(result.keypoints.xy) == 0:
+        return False
+
+    kp = result.keypoints.xy[0]
+
+    # Ensure we have enough keypoints (COCO = 17)
+    if kp.shape[0] < 11:
+        return False
+
+    LEFT_SHOULDER = 5
+    RIGHT_SHOULDER = 6
+    LEFT_WRIST = 9
+    RIGHT_WRIST = 10
+
+    left_hand_up = kp[LEFT_WRIST][1] < kp[LEFT_SHOULDER][1]
+    right_hand_up = kp[RIGHT_WRIST][1] < kp[RIGHT_SHOULDER][1]
+
+    return left_hand_up or right_hand_up
+
+
 if __name__ == "__main__":
     parse_arguments(sys.argv)
 
@@ -601,7 +631,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     PERSON_DETECTED = False
-    OCCUPANCY = False
+    GESTURE_DETECTED = False
+    TOGGLE_LIGHT = False
 
     configuration = load_json_file(CONFIGURATION_FILE)
     # General
@@ -709,7 +740,11 @@ if __name__ == "__main__":
 
         # Run model on frame
         if ENABLE_DETECTION:
-            video_frame, PERSON_DETECTED = process_frame(video_frame)
+            video_frame, PERSON_DETECTED, GESTURE_DETECTED = process_frame(video_frame)
+
+        if GESTURE_DETECTED:
+            TOGGLE_LIGHT = not TOGGLE_LIGHT
+            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, TOGGLE_LIGHT)
 
         # Send email
         if SEND_EMAIL:
@@ -718,14 +753,6 @@ if __name__ == "__main__":
                     pprint("Email sent")
                     email_sent = False
                     email_future = None
-
-        # Home assistant triggers
-        if PERSON_DETECTED and not OCCUPANCY:
-            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, True)
-            OCCUPANCY = True
-        elif not PERSON_DETECTED and OCCUPANCY:
-            ha_trigger_boolean(HA_URL, HA_HEADERS, HA_ENTITY_ID, False)
-            OCCUPANCY = False
 
         if PERSON_DETECTED and (time.time() - start_timeout) > TIMEOUT:
             now = datetime.now()
