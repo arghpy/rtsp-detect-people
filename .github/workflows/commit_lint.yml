@@ -1,0 +1,23 @@
+name: "Commit lint"
+
+on:
+  pull_request:
+    types:
+      - synchronize
+      - opened
+      - reopened
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commitlint:
+    permissions:
+      contents: read
+
+    name: Lint commits
+    uses: arghpy/shared-workflows/.github/workflows/commit_lint.yml@main
+    secrets: inherit
+    with:
+      runner: ${{ vars.RUNNER }}
