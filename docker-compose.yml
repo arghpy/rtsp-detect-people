@@ -15,6 +15,7 @@ services:
         "--config", "config.json",
         "--save",
         "--email",
+        "--ntfy",
         "--detect",
         "--web", "5000"
       ]

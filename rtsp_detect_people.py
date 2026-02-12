@@ -38,6 +38,7 @@ FONT_THICKNESS = 2
 SHOW_DISPLAY = False
 SAVE_VIDEO = False
 SEND_EMAIL = False
+SEND_NTFY = False
 CONFIGURATION_FILE = None
 ENABLE_WEB = False
 ENABLE_DETECTION = False
@@ -113,6 +114,22 @@ def start_web_server(web_port):
 
 
 # --- END WEB SERVER INTEGRATION ---
+
+def send_ntfy(base_url, tag, title, body, attachment_path, attachment_name):
+    pprint("Person detected. Sending notification")
+    url = f"{base_url}/{tag}"
+    with open(attachment_path, "rb") as f:
+        r = requests.post(
+            url,
+            data=f,
+            headers={
+                "Filename": attachment_name,
+                "Title": title,
+                "Message": body,
+            },
+        )
+    r.raise_for_status()
+
 
 def hls_writer(output_dir, width, height, fps):
     os.makedirs(output_dir, exist_ok=True)
@@ -530,8 +547,8 @@ def usage(argv):
 
 def parse_arguments(argv):
     """Parse command line arguments"""
-    # pylint: disable=global-statement
-    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, CONFIGURATION_FILE, WEB_PORT, ENABLE_WEB, ENABLE_DETECTION, HA_LIGHT
+    # pylint: disable=global-statement,line-too-long
+    global SHOW_DISPLAY, SAVE_VIDEO, SEND_EMAIL, SEND_NTFY, CONFIGURATION_FILE, WEB_PORT, ENABLE_WEB, ENABLE_DETECTION, HA_LIGHT
 
     passed_args = argv[1:]
 
@@ -545,6 +562,8 @@ def parse_arguments(argv):
             SAVE_VIDEO = True
         elif passed_args[0] == "-e" or passed_args[0] == "--email":
             SEND_EMAIL = True
+        elif passed_args[0] == "-n" or passed_args[0] == "--ntfy":
+            SEND_NTFY = True
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
             CONFIGURATION_FILE = passed_args[0]
@@ -619,6 +638,10 @@ if __name__ == "__main__":
     RTSP_PASSWORD = configuration["rtsp"]["password"]
     RTSP_FEED = configuration["rtsp"]["feed"]
     RTSP_URL = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{RTSP_FEED}"
+
+    # NTFY
+    NTFY_URL = configuration["ntfy"]["url"]
+    NTFY_TAG = configuration["ntfy"]["tag"]
 
     # Home Assistant
     if HA_LIGHT:
@@ -760,6 +783,13 @@ if __name__ == "__main__":
                     configuration,
                 )
                 email_sent = True
+
+            if SEND_NTFY:
+                try:
+                    send_ntfy(NTFY_URL, NTFY_TAG, "Person detected", "", SAVE_IMAGE, f"detection.{SAVE_IMAGE_TYPE}")
+                    pprint("Successfully sent ntfy")
+                except requests.exceptions.HTTPError:
+                    eprint("Failed to send ntfy")
 
             start_timeout = time.time()
 
