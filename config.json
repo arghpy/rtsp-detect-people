@@ -12,6 +12,10 @@
       "optional_force_fps": "<int>"
     }
   },
+  "ntfy": {
+    "url": "<url>",
+    "tag": "<tag>"
+  },
   "email": {
     "user": "<USER_EMAIL>",
     "password": "<PASSWORD>",
