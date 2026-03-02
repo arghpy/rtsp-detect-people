@@ -7,7 +7,6 @@ import os
 import queue
 import select
 import signal
-import smtplib
 import subprocess
 import sys
 import threading
@@ -15,7 +14,6 @@ import time
 import shutil
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from email.message import EmailMessage
 
 import cv2
 import numpy as np
@@ -25,25 +23,20 @@ import requests
 from ultralytics import YOLO
 
 from webserver import HLS_DIR, start_web_server
+from core import pprint, eprint
+from notifications import send_ntfy, send_email_report, SEND_EMAIL
+from home_assistant import HA_LIGHT, ha_trigger_boolean
 
 # Load YOLOv8n model (it will auto-download if missing)
 model = None
 CUDA_ENABLED = False
 
-# Font settings
-FONT_NAME = cv2.FONT_HERSHEY_SIMPLEX
-FONT_SCALE = 0.6
-FONT_THICKNESS = 2
-
 # Args
 SHOW_DISPLAY = False
 SAVE_VIDEO = False
-SEND_EMAIL = False
-SEND_NTFY = False
 CONFIGURATION_FILE = None
 ENABLE_WEB = False
 ENABLE_DETECTION = False
-HA_LIGHT = False
 WEB_PORT = None
 
 # Other globals
@@ -51,22 +44,6 @@ MAX_FRAME_DROPS = 5
 BOX_COLOR = (0, 255, 0)  # (B, G, R) colors - Green
 CONFIDENCE_MIN = None
 HLS_WRITER = None
-
-
-def send_ntfy(base_url, tag, title, body, attachment_path, attachment_name):
-    pprint("Person detected. Sending notification")
-    url = f"{base_url}/{tag}"
-    with open(attachment_path, "rb") as f:
-        r = requests.post(
-            url,
-            data=f,
-            headers={
-                "Filename": attachment_name,
-                "Title": title,
-                "Message": body,
-            },
-        )
-    r.raise_for_status()
 
 
 def hls_writer(output_dir, width, height, fps):
@@ -137,42 +114,6 @@ def handle_signals(signum, exec_frame):
 
 signal.signal(signal.SIGTERM, handle_signals)
 signal.signal(signal.SIGINT, handle_signals)
-
-
-def eprint(s):
-    """Print to stderr with current time"""
-    print(f"{datetime.now()}: {s}", file=sys.stderr, flush=True)
-
-
-def pprint(s):
-    """Print to stdout with current time"""
-    print(f"{datetime.now()}: {s}", file=sys.stdout, flush=True)
-
-
-def send_email_report(save_image_path, save_image_type, config):
-    """Send email based on the environment variables"""
-    pprint("Person detected. Sending email")
-
-    # Create the container email message.
-    msg = EmailMessage()
-    current_time = time.strftime("%Y-%m-%d_%H:%M:%S")
-    msg["Subject"] = config["email"]["subject"] + f": {current_time}"
-    msg["From"] = config["email"]["user"]
-    msg["To"] = ", ".join(config["email"]["recipients"])
-
-    # Open the image in binary mode
-    with open(save_image_path, "rb") as fp:
-        img_data = fp.read()
-        msg.add_attachment(
-            img_data,
-            maintype="image",
-            subtype=save_image_type,
-            filename=save_image_path,
-        )
-
-    with smtplib.SMTP_SSL(config["email"]["server"], config["email"]["port"]) as s:
-        s.login(config["email"]["user"], config["email"]["password"])
-        s.send_message(msg)
 
 
 def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
@@ -518,17 +459,6 @@ def parse_arguments(argv):
             usage(argv)
             sys.exit(0)
         passed_args.pop(0)
-
-
-def ha_trigger_boolean(url, headers, entity_id, request: bool):
-    state = "turn_on" if request else "turn_off"
-    url = f"{url}/{state}"
-    payload = {
-        "entity_id": f"{entity_id}"
-    }
-
-    response = requests.post(url, headers=HA_HEADERS, json=payload)
-    response.raise_for_status()
 
 
 if __name__ == "__main__":
