@@ -32,7 +32,7 @@ def process_frame(rtsp_url):
         conf=CONFIG["CONFIDENCE_MIN"],
         verbose=False,
         half=True,
-        stream=False,
+        stream=True,
         rect=True,
         classes=[0],  # Persons
     )
@@ -55,4 +55,4 @@ def process_frame(rtsp_url):
                 (0, 255, 0),
                 2,
             )
-    return frame, person_detected
+    yield frame, person_detected

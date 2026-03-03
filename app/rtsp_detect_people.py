@@ -161,102 +161,102 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         # Run model on frame
-        video_frame, PERSON_DETECTED = process_frame(CONFIG["RTSP_URL"])
-        print(f"size: {video_frame.size}, {video_frame.shape[0]} {video_frame.shape[1]}")
+        for video_frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"]):
+            print(f"size: {video_frame.size}, {video_frame.shape[0]} {video_frame.shape[1]}")
 
-        if PERSON_DETECTED and not OCCUPANCY_DETECTED:
-            OCCUPANCY_DETECTED = True
-            if ARGS["HA_LIGHT"]:
-                HA_TOGGLE = not HA_TOGGLE
-                ha_trigger_boolean(HA_TOGGLE)
-        elif not PERSON_DETECTED and OCCUPANCY_DETECTED:
-            OCCUPANCY_DETECTED = False
-            if ARGS["HA_LIGHT"]:
-                HA_TOGGLE = not HA_TOGGLE
-                ha_trigger_boolean(HA_TOGGLE)
+            if PERSON_DETECTED and not OCCUPANCY_DETECTED:
+                OCCUPANCY_DETECTED = True
+                if ARGS["HA_LIGHT"]:
+                    HA_TOGGLE = not HA_TOGGLE
+                    ha_trigger_boolean(HA_TOGGLE)
+            elif not PERSON_DETECTED and OCCUPANCY_DETECTED:
+                OCCUPANCY_DETECTED = False
+                if ARGS["HA_LIGHT"]:
+                    HA_TOGGLE = not HA_TOGGLE
+                    ha_trigger_boolean(HA_TOGGLE)
 
-        if PERSON_DETECTED and (time.time() - start_timeout) > CONFIG["TIMEOUT"]:
-            now = datetime.now()
-
-            SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-            SAVE_IMAGE_NAME = (
-                f"{CONFIG['VIDEO_NAME']}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
-            )
-            SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
-            rc = cv2.imwrite(SAVE_IMAGE, video_frame)
-            if rc:
-                pprint(f"Saved image to {SAVE_IMAGE}")
-            else:
-                eprint(f"Failed to save image to {SAVE_IMAGE}")
-
-            if ARGS["SEND_NTFY"]:
-                try:
-                    send_ntfy(
-                        "Person detected",
-                        "",
-                        SAVE_IMAGE,
-                        f"detection.{SAVE_IMAGE_TYPE}",
-                    )
-                    pprint("Successfully sent ntfy")
-                except requests.exceptions.HTTPError:
-                    eprint("Failed to send ntfy")
-
-            start_timeout = time.time()
-
-        if ARGS["ENABLE_WEB"]:
-            HLS_WRITER.stdin.write(video_frame.tobytes())
-
-        # Show display
-        if ARGS["SHOW_DISPLAY"]:
-            cv2.imshow(CONFIG["RTSP_FEED"], video_frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                break
-
-        # Save video
-        if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
-            now = datetime.now()
-
-            # Change every hour
-            if now.hour != now.hour:
-                # Release before reconstructing
-                OUT_VIDEO_WRITER.stdin.close()
-                OUT_VIDEO_WRITER.wait()
-
-                now.year = now.year
-                now.month = now.month
-                now.day = now.day
-                now.hour = now.hour
-                now.minute = now.minute
-                now.second = now.second
-
-                output_video_path = (
-                    f"{CONFIG['VIDEO_PATH']}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
-                )
-
-                output_video_name = (
-                    f"{CONFIG['VIDEO_NAME']}_{now.year}"
-                    f"-{now.month}"
-                    f"-{now.day}"
-                    f"_{now.hour}"
-                    f"-{now.minute}"
-                    f"-{now.second}"
-                    f".{output_video_format}"
-                )
-
-                output_video = f"{output_video_path}/{output_video_name}"
+            if PERSON_DETECTED and (time.time() - start_timeout) > CONFIG["TIMEOUT"]:
+                now = datetime.now()
 
                 SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-
-                try:
-                    os.makedirs(SAVE_IMAGE_PATH)
-                except FileExistsError:
-                    pass
-
-                OUT_VIDEO_WRITER = writer_stream(
-                    output_video, video_width, video_height, video_fps
+                SAVE_IMAGE_NAME = (
+                    f"{CONFIG['VIDEO_NAME']}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
                 )
-            OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
+                SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
+                rc = cv2.imwrite(SAVE_IMAGE, video_frame)
+                if rc:
+                    pprint(f"Saved image to {SAVE_IMAGE}")
+                else:
+                    eprint(f"Failed to save image to {SAVE_IMAGE}")
+
+                if ARGS["SEND_NTFY"]:
+                    try:
+                        send_ntfy(
+                            "Person detected",
+                            "",
+                            SAVE_IMAGE,
+                            f"detection.{SAVE_IMAGE_TYPE}",
+                        )
+                        pprint("Successfully sent ntfy")
+                    except requests.exceptions.HTTPError:
+                        eprint("Failed to send ntfy")
+
+                start_timeout = time.time()
+
+            if ARGS["ENABLE_WEB"]:
+                HLS_WRITER.stdin.write(video_frame.tobytes())
+
+            # Show display
+            if ARGS["SHOW_DISPLAY"]:
+                cv2.imshow(CONFIG["RTSP_FEED"], video_frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    break
+
+            # Save video
+            if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
+                now = datetime.now()
+
+                # Change every hour
+                if now.hour != now.hour:
+                    # Release before reconstructing
+                    OUT_VIDEO_WRITER.stdin.close()
+                    OUT_VIDEO_WRITER.wait()
+
+                    now.year = now.year
+                    now.month = now.month
+                    now.day = now.day
+                    now.hour = now.hour
+                    now.minute = now.minute
+                    now.second = now.second
+
+                    output_video_path = (
+                        f"{CONFIG['VIDEO_PATH']}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+                    )
+
+                    output_video_name = (
+                        f"{CONFIG['VIDEO_NAME']}_{now.year}"
+                        f"-{now.month}"
+                        f"-{now.day}"
+                        f"_{now.hour}"
+                        f"-{now.minute}"
+                        f"-{now.second}"
+                        f".{output_video_format}"
+                    )
+
+                    output_video = f"{output_video_path}/{output_video_name}"
+
+                    SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+
+                    try:
+                        os.makedirs(SAVE_IMAGE_PATH)
+                    except FileExistsError:
+                        pass
+
+                    OUT_VIDEO_WRITER = writer_stream(
+                        output_video, video_width, video_height, video_fps
+                    )
+                OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
 
     # Stop reader
     STOP_EVENT.set()
