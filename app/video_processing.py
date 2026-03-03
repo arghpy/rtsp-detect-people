@@ -188,12 +188,15 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
         if not cap.isOpened():
             eprint("Could not open RTSP stream")
             time.sleep(1)
+            cap.release()
+            continue
 
         fps = cap.get(cv2.CAP_PROP_FPS)
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         cap.release()
+        break
 
     pprint(f"Stream resolution: {width}x{height}, FPS: {fps:.2f}")
     return width, height, fps
