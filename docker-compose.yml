@@ -4,18 +4,17 @@ services:
     user: 1000:1000
     restart: unless-stopped
     volumes:
-      - ./:/usr/src/app
+      - ./app:/usr/src/app
     working_dir: /usr/src/app
     ports:
       - 5000:5000
     command:
       [
         "python3",
-        "rtsp_detect_people.py",
-        "--config", "config.json",
+        "./rtsp_detect_people.py",
+        "--config", "configuration.json",
         "--save",
         "--email",
         "--ntfy",
-        "--detect",
         "--web", "5000"
       ]

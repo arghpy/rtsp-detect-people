@@ -86,7 +86,6 @@ services:
         "config.json",
         "--save",
         "--email",
-        "--detect",
         "--web", "5000"
       ]
     deploy:

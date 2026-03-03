@@ -1,6 +1,10 @@
+import os
+import subprocess
 from flask import Flask, send_from_directory
+from model import CUDA_ENABLED
 
 HLS_DIR = "/tmp/hls"
+HLS_WRITER = None
 
 app = Flask(__name__)
 
@@ -60,3 +64,40 @@ def start_web_server(web_port):
     app.run(
         host="0.0.0.0", port=web_port, threaded=True, debug=False, use_reloader=False
     )
+
+
+def hls_writer(output_dir, width, height, fps):
+    os.makedirs(output_dir, exist_ok=True)
+
+    cmd = [
+        "ffmpeg",
+        "-loglevel", "error",
+        "-y",
+        "-f", "rawvideo",
+        "-pix_fmt", "bgr24",
+        "-s", f"{width}x{height}",
+        "-r", str(fps),
+        "-i", "-",
+    ]
+
+    if CUDA_ENABLED:
+        cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
+    else:
+        cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency"])
+
+    cmd.extend([
+        "-g", str(int(fps * 0.5)),
+        "-keyint_min", str(int(fps * 0.5)),
+        "-sc_threshold", "0",
+
+        "-pix_fmt", "yuv420p",
+
+        "-f", "hls",
+        "-hls_time", "0.5",
+        "-hls_list_size", "2",
+        "-hls_flags", "delete_segments+append_list+independent_segments",
+        "-hls_allow_cache", "0",
+        os.path.join(output_dir, "stream.m3u8"),
+    ])
+
+    return subprocess.Popen(cmd, stdin=subprocess.PIPE)
