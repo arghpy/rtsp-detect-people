@@ -2,8 +2,6 @@ import requests
 from core import pprint
 from config import CONFIG
 
-SEND_NTFY = False
-
 
 def send_ntfy(title, body, attachment_path, attachment_name):
     pprint("Person detected. Sending notification")
