@@ -33,7 +33,6 @@ def process_frame(rtsp_url):
         half=True,
         stream=True,
         stream_buffer=True,
-        rect=True,
     )
     frame = None
 
