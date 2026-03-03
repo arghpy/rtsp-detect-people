@@ -21,7 +21,7 @@ except Exception as e:
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
 
-def process_frame(rtsp_url):
+def process_frame(rtsp_url, width, height):
     """Process frame with yolo model"""
 
     # half=True - Enable FP16 for faster inference
@@ -33,6 +33,7 @@ def process_frame(rtsp_url):
         half=True,
         stream=True,
         stream_buffer=True,
+        imgsz=[height, width],
     )
     frame = None
 
