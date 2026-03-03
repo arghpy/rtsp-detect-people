@@ -28,6 +28,7 @@ def process_frame(rtsp_url):
     # half=True - Enable FP16 for faster inference
     results = model(
         source=rtsp_url,
+        show=False,
         conf=CONFIG["CONFIDENCE_MIN"],
         verbose=True,
         half=True,
