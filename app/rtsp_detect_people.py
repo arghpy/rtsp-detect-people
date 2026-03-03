@@ -162,8 +162,6 @@ if __name__ == "__main__":
     while True:
         # Run model on frame
         for video_frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"], video_width, video_height):
-            tmp_frame = cv2.resize(video_frame, (video_width, video_height))
-            video_frame = tmp_frame
             if PERSON_DETECTED and not OCCUPANCY_DETECTED:
                 OCCUPANCY_DETECTED = True
                 if ARGS["HA_LIGHT"]:

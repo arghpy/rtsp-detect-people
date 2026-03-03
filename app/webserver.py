@@ -78,6 +78,7 @@ def hls_writer(output_dir, width, height, fps):
         "-s", f"{width}x{height}",
         "-r", str(fps),
         "-i", "-",
+        "-vf", f"scale={width}:{height}",
     ]
 
     if CUDA_ENABLED:
