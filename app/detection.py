@@ -30,7 +30,7 @@ def process_frame(rtsp_url):
         source=rtsp_url,
         show=False,
         conf=CONFIG["CONFIDENCE_MIN"],
-        verbose=True,
+        verbose=False,
         half=True,
         stream=True,
         stream_buffer=True,
