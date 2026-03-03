@@ -7,7 +7,7 @@ SEND_NTFY = False
 
 def send_ntfy(title, body, attachment_path, attachment_name):
     pprint("Person detected. Sending notification")
-    url = f"{CONFIG.NTFY_URL}/{CONFIG.NTFY_TAG}"
+    url = f"{CONFIG["NTFY_URL"]}/{CONFIG["NTFY_TAG"]}"
     with open(attachment_path, "rb") as f:
         r = requests.post(
             url,

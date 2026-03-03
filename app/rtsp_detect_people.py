@@ -22,13 +22,12 @@ from video_processing import writer_stream, probe_stream
 from webserver import HLS_DIR, hls_writer, start_web_server
 
 # Args
-ARGS = {
-    "CONFIGURATION_FILE": None,
-    "SHOW_DISPLAY": False,
-    "SAVE_VIDEO": False,
-    "ENABLE_WEB": False,
-    "WEB_PORT": None,
-}
+ARGS = {}
+ARGS["CONFIGURATION_FILE"] = None
+ARGS["SHOW_DISPLAY"] = False
+ARGS["SAVE_VIDEO"] = False
+ARGS["ENABLE_WEB"] = False
+ARGS["WEB_PORT"] = None
 
 # Other globals
 MAX_FRAME_DROPS = 5
@@ -44,16 +43,15 @@ def handle_signals(signum, exec_frame):
 
     # Stop reader
     STOP_EVENT.set()
-    stream_reader_thread.join(timeout=2)
     web_thread.join(timeout=2)
 
     # Stop writer
-    if ARGS.SAVE_VIDEO:
+    if ARGS["SAVE_VIDEO"]:
         OUT_VIDEO_WRITER.stdin.close()
         OUT_VIDEO_WRITER.wait()
 
     # Destroy window if display was set
-    if ARGS.SHOW_DISPLAY:
+    if ARGS["SHOW_DISPLAY"]:
         cv2.destroyAllWindows()
 
     shutil.rmtree(HLS_DIR, ignore_errors=True)
@@ -76,22 +74,22 @@ def parse_arguments(argv):
             usage(argv)
             sys.exit(0)
         elif passed_args[0] == "-d" or passed_args[0] == "--display":
-            ARGS.SHOW_DISPLAY = True
+            ARGS["SHOW_DISPLAY"] = True
         elif passed_args[0] == "-s" or passed_args[0] == "--save":
-            ARGS.SAVE_VIDEO = True
+            ARGS["SAVE_VIDEO"] = True
         elif passed_args[0] == "-e" or passed_args[0] == "--email":
-            ARGS.SEND_EMAIL = True
+            ARGS["SEND_EMAIL"] = True
         elif passed_args[0] == "-n" or passed_args[0] == "--ntfy":
-            ARGS.SEND_NTFY = True
+            ARGS["SEND_NTFY"] = True
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
-            ARGS.CONFIGURATION_FILE = passed_args[0]
+            ARGS["CONFIGURATION_FILE"] = passed_args[0]
         elif passed_args[0] == "-w" or passed_args[0] == "--web":
-            ARGS.ENABLE_WEB = True
+            ARGS["ENABLE_WEB"] = True
             passed_args.pop(0)
-            ARGS.WEB_PORT = passed_args[0]
+            ARGS["WEB_PORT"] = passed_args[0]
         elif passed_args[0] == "--ha-light":
-            ARGS.HA_LIGHT = True
+            ARGS["HA_LIGHT"] = True
         else:
             eprint(f"Invalid option: {passed_args[0]}")
             usage(argv)
@@ -115,30 +113,30 @@ if __name__ == "__main__":
     OCCUPANCY_DETECTED = False
     HA_TOGGLE = False
 
-    if ARGS.CONFIGURATION_FILE is None:
+    if ARGS["CONFIGURATION_FILE"] is None:
         eprint("Configuration not specified.")
         usage(sys.argv)
         sys.exit(1)
 
-    process_configuration(ARGS.CONFIGURATION_FILE)
+    process_configuration(ARGS["CONFIGURATION_FILE"])
 
     # Frame and properties
-    video_width, video_height, video_fps = probe_stream(CONFIG.RTSP_URL)
+    video_width, video_height, video_fps = probe_stream(CONFIG["RTSP_URL"])
 
-    if ARGS.ENABLE_WEB:
+    if ARGS["ENABLE_WEB"]:
         HLS_WRITER = hls_writer(HLS_DIR, video_width, video_height, video_fps)
         web_thread = threading.Thread(
-            target=start_web_server, args=(ARGS.WEB_PORT,), daemon=True
+            target=start_web_server, args=(ARGS["WEB_PORT"],), daemon=True
         )
         web_thread.start()
 
-    if ARGS.SAVE_VIDEO:
+    if ARGS["SAVE_VIDEO"]:
         output_video_path = (
-            f"{CONFIG.VIDEO_PATH}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+            f"{CONFIG["VIDEO_PATH"]}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
         )
         output_video_format = "mkv"
         output_video_name = (
-            f"{CONFIG.VIDEO_NAME}_{now.year}"
+            f"{CONFIG["VIDEO_NAME"]}_{now.year}"
             f"-{now.month}"
             f"-{now.day}"
             f"_{now.hour}"
@@ -163,25 +161,25 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         # Run model on frame
-        video_frame, PERSON_DETECTED = process_frame(CONFIG.RTSP_URL)
+        video_frame, PERSON_DETECTED = process_frame(CONFIG["RTSP_URL"])
 
         if PERSON_DETECTED and not OCCUPANCY_DETECTED:
             OCCUPANCY_DETECTED = True
-            if ARGS.HA_LIGHT:
+            if ARGS["HA_LIGHT"]:
                 HA_TOGGLE = not HA_TOGGLE
                 ha_trigger_boolean(HA_TOGGLE)
         elif not PERSON_DETECTED and OCCUPANCY_DETECTED:
             OCCUPANCY_DETECTED = False
-            if ARGS.HA_LIGHT:
+            if ARGS["HA_LIGHT"]:
                 HA_TOGGLE = not HA_TOGGLE
                 ha_trigger_boolean(HA_TOGGLE)
 
-        if PERSON_DETECTED and (time.time() - start_timeout) > CONFIG.TIMEOUT:
+        if PERSON_DETECTED and (time.time() - start_timeout) > CONFIG["TIMEOUT"]:
             now = datetime.now()
 
             SAVE_IMAGE_PATH = f"{output_video_path}/captures"
             SAVE_IMAGE_NAME = (
-                f"{CONFIG.VIDEO_NAME}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
+                f"{CONFIG["VIDEO_NAME"]}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
             )
             SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
             rc = cv2.imwrite(SAVE_IMAGE, video_frame)
@@ -190,7 +188,7 @@ if __name__ == "__main__":
             else:
                 eprint(f"Failed to save image to {SAVE_IMAGE}")
 
-            if ARGS.SEND_NTFY:
+            if ARGS["SEND_NTFY"]:
                 try:
                     send_ntfy(
                         "Person detected",
@@ -204,18 +202,18 @@ if __name__ == "__main__":
 
             start_timeout = time.time()
 
-        if ARGS.ENABLE_WEB:
+        if ARGS["ENABLE_WEB"]:
             HLS_WRITER.stdin.write(video_frame.tobytes())
 
         # Show display
-        if ARGS.SHOW_DISPLAY:
-            cv2.imshow(CONFIG.RTSP_FEED, video_frame)
+        if ARGS["SHOW_DISPLAY"]:
+            cv2.imshow(CONFIG["RTSP_FEED"], video_frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
 
         # Save video
-        if ARGS.SAVE_VIDEO and OUT_VIDEO_WRITER is not None:
+        if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
             now = datetime.now()
 
             # Change every hour
@@ -232,11 +230,11 @@ if __name__ == "__main__":
                 now.second = now.second
 
                 output_video_path = (
-                    f"{CONFIG.VIDEO_PATH}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+                    f"{CONFIG["VIDEO_PATH"]}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
                 )
 
                 output_video_name = (
-                    f"{CONFIG.VIDEO_NAME}_{now.year}"
+                    f"{CONFIG["VIDEO_NAME"]}_{now.year}"
                     f"-{now.month}"
                     f"-{now.day}"
                     f"_{now.hour}"
@@ -264,12 +262,12 @@ if __name__ == "__main__":
     web_thread.join(timeout=2)
 
     # Stop writer
-    if ARGS.SAVE_VIDEO:
+    if ARGS["SAVE_VIDEO"]:
         OUT_VIDEO_WRITER.stdin.close()
         OUT_VIDEO_WRITER.wait()
 
     # Destroy window if display was set
-    if ARGS.SHOW_DISPLAY:
+    if ARGS["SHOW_DISPLAY"]:
         cv2.destroyAllWindows()
 
     shutil.rmtree(HLS_DIR, ignore_errors=True)
