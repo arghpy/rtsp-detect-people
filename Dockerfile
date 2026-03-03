@@ -10,7 +10,7 @@ RUN apt-get update\
 RUN pip uninstall -y opencv-python opencv-python-headless || true
 
 # INSTALL headless OpenCV
-RUN pip install --no-cache-dir opencv-python-headless
+RUN pip install --no-cache-dir opencv-python --upgrade
 
 # Install your extras
 RUN pip install --no-cache-dir flask
