@@ -55,4 +55,4 @@ def process_frame(rtsp_url):
                 (0, 255, 0),
                 2,
             )
-    yield frame, person_detected
+        yield frame, person_detected
