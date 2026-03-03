@@ -161,7 +161,7 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         # Run model on frame
-        for video_frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"]):
+        for video_frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"], video_width, video_height):
             if PERSON_DETECTED and not OCCUPANCY_DETECTED:
                 OCCUPANCY_DETECTED = True
                 if ARGS["HA_LIGHT"]:
