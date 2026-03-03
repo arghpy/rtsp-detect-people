@@ -26,7 +26,7 @@ def process_frame(rtsp_url):
     person_detected = False
 
     # half=True - Enable FP16 for faster inference
-    results = model.predict(
+    results = model(
         source=rtsp_url,
         conf=CONFIG["CONFIDENCE_MIN"],
         verbose=True,
