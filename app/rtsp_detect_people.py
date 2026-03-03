@@ -128,9 +128,14 @@ if __name__ == "__main__":
 
     # Frame and properties
     video_width, video_height, video_fps = probe_stream(CONFIG["RTSP_URL"])
-    # Scale all streams to 1920 width
-    target_width = 1920
-    target_height = int(video_height * target_width / video_width)
+    MAX_WIDTH = 1920
+    if video_width > MAX_WIDTH:
+        scale_ratio = MAX_WIDTH / video_width
+    else:
+        scale_ratio = 1.0  # do not upscale small streams
+
+    target_width = int(video_width * scale_ratio)
+    target_height = int(video_height * scale_ratio)
 
     # Ensure width/height are even for NVENC
     target_width = (target_width // 2) * 2
