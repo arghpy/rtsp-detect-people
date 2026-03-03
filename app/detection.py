@@ -23,7 +23,6 @@ os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
 def process_frame(rtsp_url):
     """Process frame with yolo model"""
-    person_detected = False
 
     # half=True - Enable FP16 for faster inference
     results = model(
@@ -39,6 +38,7 @@ def process_frame(rtsp_url):
     frame = None
 
     for result in results:
+        person_detected = False
         frame = result.orig_img
         boxes = result.boxes
         for box in boxes:
