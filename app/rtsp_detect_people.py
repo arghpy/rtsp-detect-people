@@ -162,6 +162,7 @@ if __name__ == "__main__":
     while True:
         # Run model on frame
         video_frame, PERSON_DETECTED = process_frame(CONFIG["RTSP_URL"])
+        print(f"size: {video_frame.size}, {video_frame.shape[0]} {video_frame.shape[1]}")
 
         if PERSON_DETECTED and not OCCUPANCY_DETECTED:
             OCCUPANCY_DETECTED = True
