@@ -102,6 +102,12 @@ if __name__ == "__main__":
 
     # Set up used variables
     now = datetime.now()
+    year = now.year
+    month = now.month
+    day = now.day
+    hour = now.hour
+    minute = now.minute
+    second = now.second
 
     SAVE_IMAGE_TYPE = "jpeg"
     SAVE_IMAGE_PATH = None
@@ -132,16 +138,16 @@ if __name__ == "__main__":
 
     if ARGS["SAVE_VIDEO"]:
         output_video_path = (
-            f"{CONFIG['VIDEO_PATH']}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+            f"{CONFIG['VIDEO_PATH']}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
         )
         output_video_format = "mkv"
         output_video_name = (
-            f"{CONFIG['VIDEO_NAME']}_{now.year}"
-            f"-{now.month}"
-            f"-{now.day}"
-            f"_{now.hour}"
-            f"-{now.minute}"
-            f"-{now.second}"
+            f"{CONFIG['VIDEO_NAME']}_{year}"
+            f"-{month}"
+            f"-{day}"
+            f"_{hour}"
+            f"-{minute}"
+            f"-{second}"
             f".{output_video_format}"
         )
 
@@ -175,10 +181,16 @@ if __name__ == "__main__":
 
             if PERSON_DETECTED and (time.time() - start_timeout) > CONFIG["TIMEOUT"]:
                 now = datetime.now()
+                year = now.year
+                month = now.month
+                day = now.day
+                hour = now.hour
+                minute = now.minute
+                second = now.second
 
                 SAVE_IMAGE_PATH = f"{output_video_path}/captures"
                 SAVE_IMAGE_NAME = (
-                    f"{CONFIG['VIDEO_NAME']}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
+                    f"{CONFIG['VIDEO_NAME']}" f"_{minute}" f":{second}" f".{SAVE_IMAGE_TYPE}"
                 )
                 SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
                 rc = cv2.imwrite(SAVE_IMAGE, video_frame)
@@ -216,29 +228,29 @@ if __name__ == "__main__":
                 now = datetime.now()
 
                 # Change every hour
-                if now.hour != now.hour:
+                if hour != now.hour:
                     # Release before reconstructing
                     OUT_VIDEO_WRITER.stdin.close()
                     OUT_VIDEO_WRITER.wait()
 
-                    now.year = now.year
-                    now.month = now.month
-                    now.day = now.day
-                    now.hour = now.hour
-                    now.minute = now.minute
-                    now.second = now.second
+                    year = now.year
+                    month = now.month
+                    day = now.day
+                    hour = now.hour
+                    minute = now.minute
+                    second = now.second
 
                     output_video_path = (
-                        f"{CONFIG['VIDEO_PATH']}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+                        f"{CONFIG['VIDEO_PATH']}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
                     )
 
                     output_video_name = (
-                        f"{CONFIG['VIDEO_NAME']}_{now.year}"
-                        f"-{now.month}"
-                        f"-{now.day}"
-                        f"_{now.hour}"
-                        f"-{now.minute}"
-                        f"-{now.second}"
+                        f"{CONFIG['VIDEO_NAME']}_{year}"
+                        f"-{month}"
+                        f"-{day}"
+                        f"_{hour}"
+                        f"-{minute}"
+                        f"-{second}"
                         f".{output_video_format}"
                     )
 
