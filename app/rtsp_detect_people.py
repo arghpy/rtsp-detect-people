@@ -132,11 +132,11 @@ if __name__ == "__main__":
 
     if ARGS["SAVE_VIDEO"]:
         output_video_path = (
-            f"{CONFIG["VIDEO_PATH"]}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+            f"{CONFIG['VIDEO_PATH']}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
         )
         output_video_format = "mkv"
         output_video_name = (
-            f"{CONFIG["VIDEO_NAME"]}_{now.year}"
+            f"{CONFIG['VIDEO_NAME']}_{now.year}"
             f"-{now.month}"
             f"-{now.day}"
             f"_{now.hour}"
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
             SAVE_IMAGE_PATH = f"{output_video_path}/captures"
             SAVE_IMAGE_NAME = (
-                f"{CONFIG["VIDEO_NAME"]}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
+                f"{CONFIG['VIDEO_NAME']}" f"_{now.minute}" f":{now.second}" f".{SAVE_IMAGE_TYPE}"
             )
             SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
             rc = cv2.imwrite(SAVE_IMAGE, video_frame)
@@ -230,11 +230,11 @@ if __name__ == "__main__":
                 now.second = now.second
 
                 output_video_path = (
-                    f"{CONFIG["VIDEO_PATH"]}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
+                    f"{CONFIG['VIDEO_PATH']}" f"/{now.year}" f"/{now.month}" f"/{now.day}" f"/{now.hour}"
                 )
 
                 output_video_name = (
-                    f"{CONFIG["VIDEO_NAME"]}_{now.year}"
+                    f"{CONFIG['VIDEO_NAME']}_{now.year}"
                     f"-{now.month}"
                     f"-{now.day}"
                     f"_{now.hour}"

@@ -31,7 +31,7 @@ def process_configuration(config_file):
         RTSP_USER = configuration["rtsp"]["user"]
         RTSP_PASSWORD = configuration["rtsp"]["password"]
         CONFIG["RTSP_FEED"] = configuration["rtsp"]["feed"]
-        CONFIG["RTSP_URL"] = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{CONFIG["RTSP_FEED"]}"
+        CONFIG["RTSP_URL"] = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{CONFIG['RTSP_FEED']}"
     except KeyError as e:
         eprint(f"[CONFIG] Mandatory config option missing: {e}")
 
@@ -54,7 +54,7 @@ def process_configuration(config_file):
         HA_URL = configuration["home-assistant"]["base_http_url"]
         CONFIG["HA_ENTITY_ID"] = configuration["home-assistant"]["entity"]["id"]
         CONFIG["HA_ENTITY_TYPE"] = configuration["home-assistant"]["entity"]["type"]
-        CONFIG["HA_URL"] = f"{HA_URL}/api/services/{CONFIG["HA_ENTITY_TYPE"]}"
+        CONFIG["HA_URL"] = f"{HA_URL}/api/services/{CONFIG['HA_ENTITY_TYPE']}"
         CONFIG["HA_HEADERS"] = {
             "Authorization": f"Bearer {HA_TOKEN}",
             "Content-Type": "application/json",
