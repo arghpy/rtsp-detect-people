@@ -128,9 +128,19 @@ if __name__ == "__main__":
 
     # Frame and properties
     video_width, video_height, video_fps = probe_stream(CONFIG["RTSP_URL"])
+    # Scale all streams to 1920 width
+    target_width = 1920
+    target_height = int(video_height * target_width / video_width)
+
+    # Ensure width/height are even for NVENC
+    target_width = (target_width // 2) * 2
+    target_height = (target_height // 2) * 2
+
+    pprint(f"Original resolution for encoding: {video_width}x{video_height}")
+    pprint(f"Target resolution for encoding  : {target_width}x{target_height}")
 
     if ARGS["ENABLE_WEB"]:
-        HLS_WRITER = hls_writer(HLS_DIR, video_width, video_height, video_fps)
+        HLS_WRITER = hls_writer(HLS_DIR, target_width, target_height, video_fps)
         web_thread = threading.Thread(
             target=start_web_server, args=(ARGS["WEB_PORT"],), daemon=True
         )
@@ -167,7 +177,8 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         # Run model on frame
-        for video_frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"], video_width, video_height):
+        for frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"], video_width, video_height):
+            video_frame = cv2.resize(frame, (target_width, target_height))
             if PERSON_DETECTED and not OCCUPANCY_DETECTED:
                 OCCUPANCY_DETECTED = True
                 if ARGS["HA_LIGHT"]:

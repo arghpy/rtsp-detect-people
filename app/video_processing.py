@@ -73,14 +73,4 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
         cap.release()
         break
 
-    # Scale all streams to 1920 width
-    target_width = 1920
-    target_height = int(height * target_width / width)
-
-    # Ensure width/height are even for NVENC
-    target_width = (target_width // 2) * 2
-    target_height = (target_height // 2) * 2
-
-    pprint(f"Target resolution for encoding: {target_width}x{target_height}")
-
-    return target_width, target_height, fps
+    return width, height, fps

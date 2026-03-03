@@ -21,7 +21,7 @@ except Exception as e:
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
 
 
-def process_frame(rtsp_url, video_width, video_height):
+def process_frame(rtsp_url):
     """Process frame with yolo model"""
     person_detected = False
 
