@@ -1,7 +1,7 @@
 import os
 import subprocess
 from flask import Flask, send_from_directory
-from model import CUDA_ENABLED
+from detection import CUDA_ENABLED
 
 HLS_DIR = "/tmp/hls"
 HLS_WRITER = None
