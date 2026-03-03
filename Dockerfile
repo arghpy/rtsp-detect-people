@@ -13,4 +13,4 @@ RUN pip uninstall -y opencv-python opencv-python-headless || true
 RUN pip install --no-cache-dir opencv-python-headless
 
 # Install your extras
-RUN pip install --no-cache-dir flas
+RUN pip install --no-cache-dir flask
