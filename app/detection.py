@@ -33,7 +33,7 @@ def process_frame(rtsp_url, width, height):
         half=True,
         stream=True,
         stream_buffer=True,
-        imgsz=[height, width],
+        imgsz=960,
     )
     frame = None
 

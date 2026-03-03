@@ -182,7 +182,7 @@ if __name__ == "__main__":
     # MAIN LOOP
     while True:
         # Run model on frame
-        for frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"], video_width, video_height):
+        for frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"]):
             video_frame = frame
             if video_width != target_width:
                 video_frame = cv2.resize(frame, (target_width, target_height))
