@@ -42,7 +42,8 @@ def process_frame(rtsp_url, video_width, video_height):
     for result in results:
         frame = result.orig_img
         boxes = result.boxes
-        frame = cv2.resize(frame, (video_width, video_height))
+        tmp_frame = cv2.resize(frame, (video_width, video_height))
+        frame = tmp_frame
         for box in boxes:
             confidence = float(box.conf[0])
             person_detected = True
