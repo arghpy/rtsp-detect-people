@@ -171,13 +171,13 @@ if __name__ == "__main__":
             pass
 
         OUT_VIDEO_WRITER = writer_stream(
-            output_video, video_width, video_height, video_fps
+            output_video, target_width, target_height, video_fps
         )
 
     # MAIN LOOP
     while True:
         # Run model on frame
-        for frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"], video_width, video_height):
+        for frame, PERSON_DETECTED in process_frame(CONFIG["RTSP_URL"]):
             video_frame = cv2.resize(frame, (target_width, target_height))
             if PERSON_DETECTED and not OCCUPANCY_DETECTED:
                 OCCUPANCY_DETECTED = True
@@ -275,7 +275,7 @@ if __name__ == "__main__":
                         pass
 
                     OUT_VIDEO_WRITER = writer_stream(
-                        output_video, video_width, video_height, video_fps
+                        output_video, target_width, target_height, video_fps
                     )
                 OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
 
