@@ -11,11 +11,10 @@ services:
     command:
       [
         "python3",
-        "rtsp_detect_people.py",
-        "--config", "config.json",
+        "-m", "app.rtsp_detect_people",
+        "--config", "configuration.json",
         "--save",
         "--email",
         "--ntfy",
-        "--detect",
         "--web", "5000"
       ]
