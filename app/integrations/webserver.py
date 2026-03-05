@@ -61,6 +61,9 @@ def disable_hls_cache(response):
 
 def start_web_server(web_port):
     """Run Flask app on separate thread"""
+    import logging
+
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
     app.run(
         host="0.0.0.0", port=web_port, threaded=True, debug=False, use_reloader=False
     )
