@@ -1,0 +1,34 @@
+{
+  "timeout": "60",
+  "confidence": "0.35",
+  "model": "yolo11n-pose.pt",
+  "rtsp": {
+    "feed": "camera-front/Preview_01_sub",
+    "user": "admin",
+    "password": "Kvinz4y8WeIOgb39mLkN",
+    "save_video": {
+      "path": "media/home_surveillance",
+      "name": "front",
+      "optional_force_fps": "20"
+    }
+  },
+  "email": {
+    "user": "subaandrei2@gmail.com",
+    "password": "vpms pfbw cgpi flwb",
+    "server": "smtp.gmail.com",
+    "port": "465",
+    "subject": "Person detected",
+    "recipients": [
+      "subaandrei2@gmail.com",
+      "anamariagrec52@gmail.com"
+    ]
+  },
+  "home-assistant": {
+    "base_http_url": "https://home-assistant.arghpy.ro",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiIwN2NhNGIzOWMwNjg0ZTlmYjNkNTc3YzUxNjVhNzhmYyIsImlhdCI6MTc2NTk4ODk3MSwiZXhwIjoyMDgxMzQ4OTcxfQ.h36NwEINB490GpIIiXM22tjZO9G2mP3H3QhrLMCYU-I",
+    "entity": {
+      "type": "input_boolean",
+      "id": "input_boolean.custom_motion_backyard"
+    }
+  }
+}
