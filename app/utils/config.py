@@ -1,19 +1,22 @@
-from app.utils.files import load_json_file
-from app.utils.logger import eprint
+import sys
+import app.utils.files
+import app.utils.logger
 
 CONFIG = {}
-CONFIG["CONFIDENCE_MIN"] = None
+CONFIG["CONFIDENCE_MIN"] = 0.55
+CONFIG["TIMEOUT"] = 60
 CONFIG["HA_ENTITY_ID"] = None
 CONFIG["HA_ENTITY_TYPE"] = None
 CONFIG["HA_HEADERS"] = None
 CONFIG["HA_TOKEN"] = None
 CONFIG["HA_URL"] = None
-CONFIG["MODEL"] = None
+CONFIG["YOLO_MODEL"] = "yolo11m.pt"
+CONFIG["YOLO_BATCH"] = 8
+CONFIG["YOLO_IMGSZ"] = 640
 CONFIG["NTFY_TAG"] = None
 CONFIG["NTFY_URL"] = None
 CONFIG["RTSP_FEED"] = None
 CONFIG["RTSP_URL"] = None
-CONFIG["TIMEOUT"] = None
 CONFIG["VIDEO_FPS"] = None
 CONFIG["VIDEO_FPS"] = None
 CONFIG["VIDEO_NAME"] = None
@@ -23,33 +26,42 @@ CONFIG["VIDEO_PATH"] = None
 def process_configuration(config_file):
     global CONFIG
 
-    configuration = load_json_file(config_file)
+    configuration = app.utils.files.load_json_file(config_file)
 
     try:
-        # General
-        CONFIG["TIMEOUT"] = int(configuration["timeout"])  # Secs
-        CONFIG["MODEL"] = configuration["model"]  # YOLO Model to use
-        CONFIG["CONFIDENCE_MIN"] = float(configuration["confidence"])
-
         # RTSP
         RTSP_USER = configuration["rtsp"]["user"]
         RTSP_PASSWORD = configuration["rtsp"]["password"]
         CONFIG["RTSP_FEED"] = configuration["rtsp"]["feed"]
         CONFIG["RTSP_URL"] = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{CONFIG['RTSP_FEED']}"
     except KeyError as e:
-        eprint(f"[CONFIG] Mandatory config option missing: {e}")
+        app.utils.logger.eprint(f"[CONFIG] Mandatory config option missing: {e}")
+        sys.exit(1)
+
+    try:
+        # General
+        CONFIG["TIMEOUT"] = int(configuration.get("timeout"))  # Secs
+        CONFIG["CONFIDENCE_MIN"] = float(configuration.get("confidence"))
+    except KeyError:
+        app.utils.logger.eprint("[CONFIG] Default values will be used")
+
+    try:
+        # YOLO
+        CONFIG["YOLO_MODEL"] = configuration["yolo"]["model"]
+        CONFIG["YOLO_BATCH"] = int(configuration["yolo"]["batch_size"])
+        CONFIG["YOLO_IMGSZ"] = int(configuration["yolo"]["imgsz"])
+    except KeyError:
+        app.utils.logger.eprint("[CONFIG] Default values will be used")
 
     try:
         CONFIG["VIDEO_NAME"] = configuration["rtsp"]["save_video"]["name"]
         CONFIG["VIDEO_PATH"] = configuration["rtsp"]["save_video"]["path"]
         CONFIG["VIDEO_FPS"] = int(configuration["rtsp"]["save_video"]["optional_force_fps"])
     except KeyError:
-        eprint("[CONFIG] Video won't pe saved")
+        app.utils.logger.eprint("[CONFIG] Video won't pe saved")
 
     try:
         # Email
-        CONFIG["NTFY_URL"] = configuration["ntfy"]["url"]
-        CONFIG["NTFY_TAG"] = configuration["ntfy"]["tag"]
         CONFIG["EMAIL_SUBJECT"] = configuration["email"]["subject"]
         CONFIG["EMAIL_FROM"] = configuration["email"]["user"]
         CONFIG["EMAIL_TO"] = configuration["email"]["recipients"]
@@ -57,14 +69,14 @@ def process_configuration(config_file):
         CONFIG["EMAIL_PORT"] = configuration["email"]["port"]
         CONFIG["EMAIL_PASSWORD"] = configuration["email"]["password"]
     except KeyError:
-        eprint("[CONFIG] email won't be sent")
+        app.utils.logger.eprint("[CONFIG] email won't be sent")
 
     try:
         # NTFY
         CONFIG["NTFY_URL"] = configuration["ntfy"]["url"]
         CONFIG["NTFY_TAG"] = configuration["ntfy"]["tag"]
     except KeyError:
-        eprint("[CONFIG] ntfy won't be sent")
+        app.utils.logger.eprint("[CONFIG] ntfy won't be sent")
 
     try:
         # Home Assistant
@@ -78,4 +90,4 @@ def process_configuration(config_file):
             "Content-Type": "application/json",
         }
     except KeyError:
-        eprint("[CONFIG] home assistant won't be notified")
+        app.utils.logger.eprint("[CONFIG] home assistant won't be notified")

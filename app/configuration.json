@@ -1,7 +1,11 @@
 {
   "timeout": "<int>",
   "confidence": "<float_between_0_1>",
-  "model": "yolo11n.pt",
+  "yolo": {
+    "model": "<YOLO_MODEL>",
+    "batch_size": "<int>",
+    "imgsz": "<int>"
+  },
   "rtsp": {
     "feed": "<IP>",
     "user": "<USER>",

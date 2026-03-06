@@ -2,14 +2,14 @@ import os
 import subprocess
 
 from flask import Flask, send_from_directory
-from app.yolo.detection import CUDA_ENABLED
+import app.yolo.detection
 
-app = Flask(__name__)
+application = Flask(__name__)
 
 HLS_DIR = "/tmp/hls"
 
 
-@app.route("/")
+@application.route("/")
 def index():
     return """
 <!DOCTYPE html>
@@ -42,12 +42,12 @@ def index():
 """
 
 
-@app.route("/hls/<path:filename>")
+@application.route("/hls/<path:filename>")
 def hls_files(filename):
     return send_from_directory(HLS_DIR, filename)
 
 
-@app.after_request
+@application.after_request
 def disable_hls_cache(response):
     if response.mimetype in (
         "application/vnd.apple.mpegurl",
@@ -64,7 +64,7 @@ def start_web_server(web_port):
     import logging
 
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
-    app.run(
+    application.run(
         host="0.0.0.0", port=web_port, threaded=True, debug=False, use_reloader=False
     )
 
@@ -89,7 +89,7 @@ def hls_writer(output_dir, width, height, fps):
         "-",
     ]
 
-    if CUDA_ENABLED:
+    if app.yolo.detection.CUDA_ENABLED:
         cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
     else:
         cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-tune", "zerolatency"])

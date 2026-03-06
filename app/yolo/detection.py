@@ -1,8 +1,9 @@
 # pylint: disable=import-error
 import cv2
 from ultralytics import YOLO
-from app.utils.config import CONFIG
-from app.utils.logger import eprint, pprint
+
+import app.utils.config
+import app.utils.logger
 
 CUDA_ENABLED = False
 model = None
@@ -11,26 +12,26 @@ model = None
 def load_model():
     global model, CUDA_ENABLED
 
-    model = YOLO(CONFIG["MODEL"])
+    model = YOLO(app.utils.config.CONFIG["YOLO_MODEL"])
     try:
         model.to("cuda")  # Enable GPU
         CUDA_ENABLED = True
-        pprint("CUDA found. Running on GPU")
+        app.utils.logger.pprint("CUDA found. Running on GPU")
     except Exception as e:
-        eprint(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}")
-        eprint("Continuing with cpu detection.")
+        app.utils.logger.eprint(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}")
+        app.utils.logger.eprint("Continuing with cpu detection.")
 
 
-def process_frame(frame):
+def process_frames(frames):
     """Process frame with yolo model"""
-    person_detected = False
-
     # half=True - Enable FP16 for faster inference
     results = model(
-        source=frame, conf=CONFIG["CONFIDENCE_MIN"], verbose=False, half=True
+        source=frames, conf=app.utils.config.CONFIG["CONFIDENCE_MIN"], verbose=False, half=True, imgsz=app.utils.config.CONFIG['YOLO_IMGSZ']
     )
+    output = []
 
-    for result in results:
+    for frame, result in zip(frames, results):
+        person_detected = False
         boxes = result.boxes
         for box in boxes:
             cls = int(box.cls[0])
@@ -48,4 +49,5 @@ def process_frame(frame):
                     (0, 255, 0),
                     2,
                 )
-    return frame, person_detected
+        output.append((frame, person_detected))
+    return output

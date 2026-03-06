@@ -1,17 +1,16 @@
 import queue
-import select
 import subprocess
 import time
 
 import cv2
 import numpy as np
-from app.utils.logger import eprint, pprint
-from app.yolo.detection import CUDA_ENABLED
+import app.utils.logger
+import app.yolo.detection
 
 
 def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     """Write stream to file"""
-    pprint(f"Saving video to {video_path}")
+    app.utils.logger.pprint(f"Saving video to {video_path}")
 
     writer_cmd = [
         "ffmpeg",
@@ -30,7 +29,7 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
         "-",
         "-an",  # no audio
     ]
-    if CUDA_ENABLED:
+    if app.yolo.detection.CUDA_ENABLED:
         writer_cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
     else:
         writer_cmd.extend(["-c:v", "libx264", "-preset", "veryfast"])
@@ -53,36 +52,53 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     return writer
 
 
+def read_exact(pipe, size):
+    buf = bytearray(size)
+    view = memoryview(buf)
+
+    n = 0
+    while n < size:
+        chunk = pipe.read(size - n)
+        if not chunk:
+            return None
+        view[n:n+len(chunk)] = chunk
+        n += len(chunk)
+
+    return buf
+
+
 def read_frame(pipe: subprocess.Popen, width, height) -> np.ndarray | None:
     """Read frame from reader"""
     size = width * height * 3
 
-    # Wait until data is available or timeout expires
-    rlist, _, _ = select.select([pipe], [], [], 2)  # wait 2 seconds for data
-    if not rlist:
-        return None  # no data
-
-    raw = pipe.read(size)
+    raw = read_exact(pipe, size)
     if raw is None or len(raw) != size:
         return None
 
     frame = np.frombuffer(raw, np.uint8).reshape((height, width, 3))
-    return frame.copy()
+
+    # Ensure writable for OpenCV without always copying
+    if not frame.flags.writeable:
+        frame = np.array(frame, copy=True)  # copy only if necessary
+
+    return frame
 
 
 def reader_stream(rtsp_url, fps) -> subprocess.Popen:
     """Continuously get frames from stream"""
-    pprint("Starting ffmpeg reader")
+    app.utils.logger.pprint("Starting ffmpeg reader")
 
     reader_cmd = [
         "ffmpeg",
     ]
-    if CUDA_ENABLED:
+    if app.yolo.detection.CUDA_ENABLED:
         reader_cmd.extend(["-hwaccel", "cuda"])
     reader_cmd.extend(
         [
             "-rtsp_transport",
             "tcp",
+            "-fflags", "nobuffer",
+            "-flags", "low_delay",
             "-i",
             rtsp_url,
             "-loglevel",
@@ -100,7 +116,14 @@ def reader_stream(rtsp_url, fps) -> subprocess.Popen:
     )
 
     # pylint: disable=consider-using-with
-    reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE)
+    reader = subprocess.Popen(reader_cmd, stdout=subprocess.PIPE, bufsize=0)
+    try:
+        import fcntl
+        fcntl.fcntl(reader.stdout.fileno(), fcntl.F_SETPIPE_SZ, 1_000_000)
+    except Exception as e:
+        app.utils.logger.eprint(f"Could not increase read buffer size: {e}")
+        pass
+
     return reader
 
 
@@ -113,7 +136,7 @@ def terminate_pipe_process(pipe: subprocess.Popen):
     try:
         pipe.wait(timeout=wait_timeout)
     except subprocess.TimeoutExpired:
-        eprint(f"Waited for {wait_timeout}. Killing process")
+        app.utils.logger.eprint(f"Waited for {wait_timeout}. Killing process")
         pipe.kill()
 
 
@@ -124,16 +147,16 @@ def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url, fps):
     attempt = 0
     while True:
         attempt += 1
-        eprint(f"Reconnecting attempt #{attempt}...")
+        app.utils.logger.eprint(f"Reconnecting attempt #{attempt}...")
 
         new_pipe = reader_stream(rtsp_url, fps)
         time.sleep(1.0)  # give ffmpeg a moment to start
 
         if new_pipe and new_pipe.poll() is None and new_pipe.stdout:
-            pprint("Successfully reconnected")
+            app.utils.logger.pprint("Successfully reconnected")
             return new_pipe
 
-        eprint("ffmpeg failed to start or exited immediately")
+        app.utils.logger.eprint("ffmpeg failed to start or exited immediately")
         terminate_pipe_process(new_pipe)
         time.sleep(2)
 
@@ -141,7 +164,7 @@ def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url, fps):
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     """Continuously add frames in queue to be processed"""
-    pprint("Reader thread started")
+    app.utils.logger.pprint("Reader thread started")
 
     pipe = reader_stream(rtsp_url, fps)
     if pipe is None or pipe.returncode is not None:
@@ -155,7 +178,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
             frame = read_frame(pipe.stdout, width, height)
         # pylint: disable=broad-exception-caught
         except Exception as e:
-            eprint(f"Exception reading frame: {e}")
+            app.utils.logger.eprint(f"Exception reading frame: {e}")
             dropped_frames += 1
             continue
 
@@ -163,7 +186,7 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
             dropped_frames += 1
 
             if dropped_frames >= fps * 2:
-                eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
+                app.utils.logger.eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
                 pipe = reconnect_pipe_process(pipe, rtsp_url, fps)
                 dropped_frames = 0
         else:
@@ -181,12 +204,12 @@ def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
 def probe_stream(rtsp_url) -> tuple[int, int, int]:
     """Probe the stream to get data"""
     while True:
-        pprint("Probing stream info")
+        app.utils.logger.pprint("Probing stream info")
         # Open stream once to get video properties
         cap = cv2.VideoCapture(rtsp_url)
 
         if not cap.isOpened():
-            eprint("Could not open RTSP stream")
+            app.utils.logger.eprint("Could not open RTSP stream")
             time.sleep(1)
             cap.release()
             continue
@@ -198,5 +221,5 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
         cap.release()
         break
 
-    pprint(f"Stream resolution: {width}x{height}, FPS: {fps}")
+    app.utils.logger.pprint(f"Stream resolution: {width}x{height}, FPS: {fps}")
     return width, height, fps
