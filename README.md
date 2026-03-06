@@ -27,7 +27,7 @@ For people who would like to send an email via Gmail, the following is required:
 ## Running
 
 ```bash
-rtsp_detect_people.py -c/--config FILE [-h/--help] [-d/--display] [-s/--save] [-e/--email] [-w/--web PORT]
+python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-d/--display] [-s/--save] [-e/--email] [-w/--web PORT]
 
 DESCRIPTION
        Detect people from RTSP stream.
@@ -81,9 +81,9 @@ services:
     command:
       [
         "python3",
-        "rtsp_detect_people.py",
+        "-m", "app.rtsp_detect_people",
         "--config",
-        "config.json",
+        "configuration.json",
         "--save",
         "--email",
         "--detect",
@@ -104,33 +104,3 @@ In case the connection to the camera is lost, it will try to reconnect indefinit
 
 The timeout set in the configuration file represents the timeout in seconds between emails sent,
 in case there is a person detected continuously for a long period of time.
-
-If you wish to run this as a systemd service:
-
-```ini
-[Unit]
-Description=Save and detect people on security camera
-After=network.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-EnvironmentFile=/etc/sysconfig/surveillance/camera_front/service_args.conf
-ExecStart=/usr/local/bin/rtsp_detect_people.py $ARGS
-Restart=on-failure
-RestartSec=5
-KillSignal=SIGINT
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Where the EnvironmentFile contains:
-
-```bash
-#######################################################
-# Define ARGS for camera_front_save_and_detect.service
-#######################################################
-
-ARGS="--config /etc/sysconfig/surveillance/camera_front/rtsp_detect_people/config.json --save --email"
-```
