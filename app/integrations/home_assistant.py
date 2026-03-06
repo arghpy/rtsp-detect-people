@@ -1,11 +1,26 @@
+import ssl
+
+import certifi
 import requests
-from app.utils.config import CONFIG
+
+import app.utils.config
+import app.utils.logger
+
+ssl_context = ssl.create_default_context(cafile=certifi.where())
 
 
 def ha_trigger_boolean(request: bool):
     state = "turn_on" if request else "turn_off"
-    url = f"{CONFIG['HA_URL']}/{state}"
-    payload = {"entity_id": f"{CONFIG['HA_ENTITY_ID']}"}
+    url = f"{app.utils.config.CONFIG['HA_URL']}/{state}"
+    payload = {"entity_id": f"{app.utils.config.CONFIG['HA_ENTITY_ID']}"}
 
-    response = requests.post(url, headers=CONFIG["HA_HEADERS"], json=payload)
-    response.raise_for_status()
+    try:
+        response = requests.post(
+            url,
+            headers=app.utils.config.CONFIG["HA_HEADERS"],
+            json=payload,
+            verify=certifi.where(),
+        )
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        app.utils.logger.eprint(f"HA trigger failed for {url}: {e}")

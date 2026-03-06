@@ -1,7 +1,7 @@
 import json
 import sys
 
-from app.utils.logger import eprint
+import app.utils.logger
 
 
 def load_json_file(file):
@@ -12,9 +12,9 @@ def load_json_file(file):
             content.strip()  # Remove whitespaces
             json_content = json.loads(content)
     except json.JSONDecodeError:
-        eprint(f"File is not in JSON format: {file}")
+        app.utils.logger.eprint(f"File is not in JSON format: {file}")
         sys.exit(1)
     except FileNotFoundError:
-        eprint(f"File does not exist: {file}")
+        app.utils.logger.eprint(f"File does not exist: {file}")
         sys.exit(0)
     return json_content

@@ -15,15 +15,16 @@ from datetime import datetime
 
 import cv2
 import requests
-from app.integrations.email import send_email_report
-from app.integrations.home_assistant import ha_trigger_boolean
-from app.integrations.ntfy import send_ntfy
-from app.integrations.webserver import HLS_DIR, hls_writer, start_web_server
-from app.utils.config import CONFIG, process_configuration
-from app.utils.help import usage
-from app.utils.logger import eprint, pprint
-from app.utils.video import probe_stream, reader_frames_thread, writer_stream
-from app.yolo.detection import process_frame, load_model
+
+import app.integrations.email
+import app.integrations.home_assistant
+import app.integrations.ntfy
+import app.integrations.webserver
+import app.utils.config
+import app.utils.help
+import app.utils.logger
+import app.utils.video
+import app.yolo.detection
 
 # Args
 ARGS = {}
@@ -43,7 +44,7 @@ def handle_signals(signum, exec_frame):
     global STOP_EVENT
 
     signame = signal.Signals(signum).name
-    pprint(f"Received {signame}({signum})")
+    app.utils.logger.pprint(f"Received {signame}({signum})")
 
     # Release and close threading
     executor.shutdown(wait=True)
@@ -62,7 +63,7 @@ def handle_signals(signum, exec_frame):
     if ARGS["SHOW_DISPLAY"]:
         cv2.destroyAllWindows()
 
-    shutil.rmtree(HLS_DIR, ignore_errors=True)
+    shutil.rmtree(app.integrations.webserver.HLS_DIR, ignore_errors=True)
     sys.exit(0)
 
 
@@ -78,7 +79,7 @@ def parse_arguments(argv):
 
     while len(passed_args) > 0:
         if passed_args[0] == "-h" or passed_args[0] == "--help":
-            usage(argv)
+            app.utils.help.usage(argv)
             sys.exit(0)
         elif passed_args[0] == "-d" or passed_args[0] == "--display":
             ARGS["SHOW_DISPLAY"] = True
@@ -98,8 +99,8 @@ def parse_arguments(argv):
         elif passed_args[0] == "--ha-trigger":
             ARGS["HA_TRIGGER"] = True
         else:
-            eprint(f"Invalid option: {passed_args[0]}")
-            usage(argv)
+            app.utils.logger.eprint(f"Invalid option: {passed_args[0]}")
+            app.utils.help.usage(argv)
             sys.exit(0)
         passed_args.pop(0)
 
@@ -128,34 +129,73 @@ if __name__ == "__main__":
     executor = ThreadPoolExecutor(max_workers=1)
 
     if ARGS["CONFIGURATION_FILE"] is None:
-        eprint("Configuration not specified.")
-        usage(sys.argv)
+        app.utils.logger.eprint("Configuration not specified.")
+        app.utils.help.usage(sys.argv)
         sys.exit(1)
 
-    process_configuration(ARGS["CONFIGURATION_FILE"])
-    load_model()
+    app.utils.config.process_configuration(ARGS["CONFIGURATION_FILE"])
+
+    if (
+        app.utils.config.CONFIG["VIDEO_NAME"] is None
+        or app.utils.config.CONFIG["VIDEO_PATH"] is None
+        or app.utils.config.CONFIG["VIDEO_FPS"] is None
+    ):
+        ARGS["SAVE_VIDEO"] = False
+
+    if (
+        app.utils.config.CONFIG["EMAIL_SUBJECT"] is None
+        or app.utils.config.CONFIG["EMAIL_FROM"] is None
+        or app.utils.config.CONFIG["EMAIL_TO"] is None
+        or app.utils.config.CONFIG["EMAIL_SERVER"] is None
+        or app.utils.config.CONFIG["EMAIL_PORT"] is None
+        or app.utils.config.CONFIG["EMAIL_PASSWORD"] is None
+    ):
+        ARGS["SEND_EMAIL"] = False
+
+    if (
+        app.utils.config.CONFIG["NTFY_URL"] is None
+        or app.utils.config.CONFIG["NTFY_TAG"] is None
+    ):
+        ARGS["SEND_NTFY"] = False
+
+    if (
+        app.utils.config.CONFIG["HA_ENTITY_ID"] is None
+        or app.utils.config.CONFIG["HA_ENTITY_TYPE"] is None
+    ):
+        ARGS["HA_TRIGGER"] = False
+
+    app.yolo.detection.load_model()
 
     PERSON_DETECTED = False
     OCCUPANCY_DETECTED = False
     HA_TOGGLE = False
 
     # Frame and properties
-    video_width, video_height, video_fps = probe_stream(CONFIG["RTSP_URL"])
-    try:
-        video_fps = CONFIG["VIDEO_FPS"]
-        pprint(f"FPS was overridden by the config to {video_fps}")
-    except KeyError:
-        pass
+    video_width, video_height, video_fps = app.utils.video.probe_stream(
+        app.utils.config.CONFIG["RTSP_URL"]
+    )
+    if video_fps < 10 or video_fps > 50:
+        try:
+            video_fps = app.utils.config.CONFIG["VIDEO_FPS"]
+            app.utils.logger.pprint(f"FPS was overridden by the config to {video_fps}")
+        except KeyError:
+            pass
 
-    FRAME_QUEUE = queue.Queue(maxsize=video_fps * 2)
+    MAX_BATCH_SIZE = app.utils.config.CONFIG["YOLO_BATCH"]
+
+    QUEUE_SIZE = video_fps
+    if 3 * MAX_BATCH_SIZE < video_fps:
+        QUEUE_SIZE = 3 * MAX_BATCH_SIZE
+
+    FRAME_QUEUE = queue.Queue(maxsize=int(QUEUE_SIZE))
     stream_reader_thread = threading.Thread(
-        target=reader_frames_thread,
+        target=app.utils.video.reader_frames_thread,
         args=(
             FRAME_QUEUE,
             video_width,
             video_height,
             video_fps,
-            CONFIG["RTSP_URL"],
+            app.utils.config.CONFIG["RTSP_URL"],
             STOP_EVENT,
         ),
         daemon=True,
@@ -163,20 +203,24 @@ if __name__ == "__main__":
     stream_reader_thread.start()
 
     if ARGS["ENABLE_WEB"]:
-        HLS_WRITER = hls_writer(HLS_DIR, video_width, video_height, video_fps)
+        HLS_WRITER = app.integrations.webserver.hls_writer(
+            app.integrations.webserver.HLS_DIR, video_width, video_height, video_fps
+        )
         web_thread = threading.Thread(
-            target=start_web_server, args=(ARGS["WEB_PORT"],), daemon=True
+            target=app.integrations.webserver.start_web_server,
+            args=(ARGS["WEB_PORT"],),
+            daemon=True,
         )
         web_thread.start()
 
     if ARGS["SAVE_VIDEO"]:
-        output_video_path = CONFIG["VIDEO_PATH"]
+        output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
         output_video_path = (
             f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
         )
         output_video_format = "mkv"
         output_video_name = (
-            f"{CONFIG['VIDEO_NAME']}_{year}"
+            f"{app.utils.config.CONFIG['VIDEO_NAME']}_{year}"
             f"-{month}"
             f"-{day}"
             f"_{hour}"
@@ -194,142 +238,169 @@ if __name__ == "__main__":
         except FileExistsError:
             pass
 
-        OUT_VIDEO_WRITER = writer_stream(
+        OUT_VIDEO_WRITER = app.utils.video.writer_stream(
             output_video, video_width, video_height, video_fps
         )
 
+    OCCUPANCY_DETECTED_TIMEOUT = 10  # secs
+    OCCUPANCY_LAST_SEEN = 0  # timestamp of last detection
+
     # MAIN LOOP
     while True:
-        video_frame = FRAME_QUEUE.get(block=True)  # Wait until a frame is available
+        frames = []
+        batch_timeout = min(MAX_BATCH_SIZE/video_fps, 0.1)  # calculate the ideal time to wait for MAX_BATCH_SIZE frames
+        start_time = time.time()
 
-        # Check for corrupt frame
-        if (
-            video_frame.size == 0
-            or video_frame.shape[0] < 50
-            or video_frame.shape[1] < 50
-        ):
-            eprint("[WARN] Corrupt frame detected, skipping...")
-            continue
-
-        # Run model on frame
-        video_frame, PERSON_DETECTED = process_frame(video_frame)
-
-        # Send email
-        if ARGS["SEND_EMAIL"]:
-            if email_sent and email_future is not None:
-                if email_future.done():
-                    pprint("Email sent")
-                    email_sent = False
-                    email_future = None
-
-        if PERSON_DETECTED and not OCCUPANCY_DETECTED:
-            OCCUPANCY_DETECTED = True
-            if ARGS["HA_TRIGGER"]:
-                HA_TOGGLE = not HA_TOGGLE
-                ha_trigger_boolean(HA_TOGGLE)
-        elif not PERSON_DETECTED and OCCUPANCY_DETECTED:
-            OCCUPANCY_DETECTED = False
-            if ARGS["HA_TRIGGER"]:
-                HA_TOGGLE = not HA_TOGGLE
-                ha_trigger_boolean(HA_TOGGLE)
-
-        if PERSON_DETECTED and (time.time() - start_timeout) > CONFIG["TIMEOUT"]:
-            now = datetime.now()
-            minute = now.minute
-            second = now.second
-
-            SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-            SAVE_IMAGE_NAME = (
-                f"{CONFIG['VIDEO_NAME']}"
-                f"_{minute}"
-                f":{second}"
-                f".jpeg"
-            )
-            SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
-            rc = cv2.imwrite(SAVE_IMAGE, video_frame)
-            if rc:
-                pprint(f"Saved image to {SAVE_IMAGE}")
-            else:
-                eprint(f"Failed to save image to {SAVE_IMAGE}")
-
-            if ARGS["SEND_EMAIL"]:
-                email_future = executor.submit(
-                    send_email_report,
-                    SAVE_IMAGE,
-                )
-                email_sent = True
-
-            if ARGS["SEND_NTFY"]:
-                try:
-                    send_ntfy(
-                        CONFIG["NTFY_URL"],
-                        CONFIG["NTFY_TAG"],
-                        "Person detected",
-                        "",
-                        SAVE_IMAGE,
-                        "detection.jpeg",
+        while len(frames) < MAX_BATCH_SIZE:
+            try:
+                frame = FRAME_QUEUE.get(timeout=batch_timeout)
+                if frame.size == 0 or frame.shape[0] < 50 or frame.shape[1] < 50:
+                    app.utils.logger.eprint(
+                        "[WARN] Corrupt frame detected, skipping..."
                     )
-                    pprint("Successfully sent ntfy")
-                except requests.exceptions.HTTPError:
-                    eprint("Failed to send ntfy")
-
-            start_timeout = time.time()
-
-        if ARGS["ENABLE_WEB"]:
-            HLS_WRITER.stdin.write(video_frame.tobytes())
-
-        # Show display
-        if ARGS["SHOW_DISPLAY"]:
-            cv2.imshow(CONFIG["RTSP_FEED"], video_frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
+                    continue
+                frames.append(frame)
+            except queue.Empty:
                 break
 
-        # Save video
-        if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
-            now = datetime.now()
+            # stop early if we've waited too long
+            if time.time() - start_time >= batch_timeout:
+                break
 
-            # Change every hour
-            if now.hour != hour:
-                # Release before reconstructing
-                OUT_VIDEO_WRITER.stdin.close()
-                OUT_VIDEO_WRITER.wait()
+        if len(frames) == 0:
+            continue
 
-                year = now.year
-                month = now.month
-                day = now.day
-                hour = now.hour
+        processed_frames = app.yolo.detection.process_frames(frames)
+
+        # Check if any detection is true
+        OCCUPANCY_DETECTED = any(detection for _, detection in processed_frames)
+
+        # Update last seen if detected
+        if OCCUPANCY_DETECTED:
+            OCCUPANCY_LAST_SEEN = time.time()
+            if ARGS["HA_TRIGGER"] and not HA_TOGGLE:
+                HA_TOGGLE = True
+                app.integrations.home_assistant.ha_trigger_boolean(True)
+
+        # If timeout has passed since last detection, turn off
+        if ARGS["HA_TRIGGER"] and HA_TOGGLE:
+            if time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT:
+                HA_TOGGLE = False
+                app.integrations.home_assistant.ha_trigger_boolean(False)
+
+        for video_frame, PERSON_DETECTED in processed_frames:
+            # Send email
+            if ARGS["SEND_EMAIL"]:
+                if email_sent and email_future is not None:
+                    if email_future.done():
+                        app.utils.logger.pprint("Email sent")
+                        email_sent = False
+                        email_future = None
+
+            if (
+                PERSON_DETECTED
+                and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]
+            ):
+                now = datetime.now()
                 minute = now.minute
                 second = now.second
 
-                output_video_path = CONFIG["VIDEO_PATH"]
-                output_video_path = (
-                    f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
-                )
-
-                output_video_name = (
-                    f"{CONFIG['VIDEO_NAME']}_{year}"
-                    f"-{month}"
-                    f"-{day}"
-                    f"_{hour}"
-                    f"-{minute}"
-                    f"-{second}"
-                    f".{output_video_format}"
-                )
-
-                output_video = f"{output_video_path}/{output_video_name}"
-
                 SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-
-                try:
-                    os.makedirs(SAVE_IMAGE_PATH)
-                except FileExistsError:
-                    pass
-
-                OUT_VIDEO_WRITER = writer_stream(
-                    output_video, video_width, video_height, video_fps
+                SAVE_IMAGE_NAME = (
+                    f"{app.utils.config.CONFIG['VIDEO_NAME']}"
+                    f"_{minute}"
+                    f":{second}"
+                    f".jpeg"
                 )
-            OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
+                SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
+                rc = cv2.imwrite(SAVE_IMAGE, video_frame)
+                if rc:
+                    app.utils.logger.pprint(f"Saved image to {SAVE_IMAGE}")
+                else:
+                    app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
+
+                if ARGS["SEND_EMAIL"]:
+                    email_future = executor.submit(
+                        app.integrations.email.send_email_report,
+                        SAVE_IMAGE,
+                    )
+                    email_sent = True
+
+                if ARGS["SEND_NTFY"]:
+                    try:
+                        app.integrations.ntfy.send_ntfy(
+                            app.utils.config.CONFIG["NTFY_URL"],
+                            app.utils.config.CONFIG["NTFY_TAG"],
+                            "Person detected",
+                            "",
+                            SAVE_IMAGE,
+                            "detection.jpeg",
+                        )
+                        app.utils.logger.pprint("Successfully sent ntfy")
+                    except requests.exceptions.HTTPError:
+                        app.utils.logger.eprint("Failed to send ntfy")
+
+                start_timeout = time.time()
+
+            if ARGS["ENABLE_WEB"]:
+                HLS_WRITER.stdin.write(video_frame.tobytes())
+
+            # Show display
+            if ARGS["SHOW_DISPLAY"]:
+                cv2.imshow(app.utils.config.CONFIG["RTSP_FEED"], video_frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    break
+
+            # Save video
+            if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
+                now = datetime.now()
+
+                # Change every hour
+                if now.hour != hour:
+                    # Release before reconstructing
+                    OUT_VIDEO_WRITER.stdin.close()
+                    OUT_VIDEO_WRITER.wait()
+
+                    year = now.year
+                    month = now.month
+                    day = now.day
+                    hour = now.hour
+                    minute = now.minute
+                    second = now.second
+
+                    output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
+                    output_video_path = (
+                        f"{output_video_path}"
+                        f"/{year}"
+                        f"/{month}"
+                        f"/{day}"
+                        f"/{hour}"
+                    )
+
+                    output_video_name = (
+                        f"{app.utils.config.CONFIG['VIDEO_NAME']}_{year}"
+                        f"-{month}"
+                        f"-{day}"
+                        f"_{hour}"
+                        f"-{minute}"
+                        f"-{second}"
+                        f".{output_video_format}"
+                    )
+
+                    output_video = f"{output_video_path}/{output_video_name}"
+
+                    SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+
+                    try:
+                        os.makedirs(SAVE_IMAGE_PATH)
+                    except FileExistsError:
+                        pass
+
+                    OUT_VIDEO_WRITER = app.utils.video.writer_stream(
+                        output_video, video_width, video_height, video_fps
+                    )
+                OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
 
     # Release and close threading
     executor.shutdown(wait=True)
@@ -348,4 +419,4 @@ if __name__ == "__main__":
     if ARGS["SHOW_DISPLAY"]:
         cv2.destroyAllWindows()
 
-    shutil.rmtree(HLS_DIR, ignore_errors=True)
+    shutil.rmtree(app.integrations.webserver.HLS_DIR, ignore_errors=True)
