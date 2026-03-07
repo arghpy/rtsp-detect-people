@@ -28,6 +28,7 @@ def index():
 
     if (Hls.isSupported()) {
       const hls = new Hls({
+        liveSyncDuration: 0.2,   // only keep ~0.2s behind live
         lowLatencyMode: true,
         backBufferLength: 30
       });
