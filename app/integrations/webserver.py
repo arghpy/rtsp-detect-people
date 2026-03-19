@@ -56,6 +56,10 @@ def create_track(fps):
 async def offer(request):
     params = await request.json()
     sdp = params["sdp"]
+    sdp = "\r\n".join(
+        line for line in params["sdp"].splitlines()
+        if line != "a=ice-options:trickle"
+    ) + "\r\n"
     print("trickle in raw sdp:", "trickle" in sdp)
     print("repr of trickle line:", repr([l for l in sdp.splitlines() if "trickle" in l]))
 
