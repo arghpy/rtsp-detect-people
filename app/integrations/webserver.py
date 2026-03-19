@@ -61,9 +61,18 @@ async def offer(request):
 
     @pc.on("connectionstatechange")
     async def on_state():
+        print("connection state:", pc.connectionState)
         if pc.connectionState in ("failed", "closed", "disconnected"):
             await pc.close()
             peers.discard(pc)
+
+    @pc.on("icegatheringstatechange")
+    async def on_ice():
+        print("ice gathering:", pc.iceGatheringState)
+
+    @pc.on("iceconnectionstatechange")
+    async def on_ice_conn():
+        print("ice connection:", pc.iceConnectionState)
 
     pc.addTrack(relay.subscribe(track))
     await pc.setRemoteDescription(RTCSessionDescription(**params))
