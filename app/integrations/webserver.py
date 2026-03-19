@@ -68,6 +68,11 @@ async def offer(request):
     @pc.on("icegatheringstatechange")
     async def on_ice():
         print("ice gathering:", pc.iceGatheringState)
+        if pc.iceGatheringState == "complete":
+            for candidate in pc.sctp and [] or []:
+                print("candidate:", candidate)
+            # actually print from the local description SDP
+            print("local SDP:\n", pc.localDescription.sdp)
 
     @pc.on("iceconnectionstatechange")
     async def on_ice_conn():
