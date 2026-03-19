@@ -65,7 +65,7 @@ async def offer(request):
             await pc.close()
             peers.discard(pc)
 
-    pc.addTrack(relay.subscribe(track))
+    pc.addTrack(track)
     await pc.setRemoteDescription(RTCSessionDescription(**params))
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
