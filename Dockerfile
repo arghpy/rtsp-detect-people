@@ -5,4 +5,4 @@ FROM ultralytics/ultralytics:8.3.95-nvidia-cuda
 RUN apt-get update\
       && apt-get install -y ffmpeg --no-install-recommends\
       && rm -rf /var/lib/apt/lists/* \
-      && pip install --no-cache-dir flask
+      && pip install --no-cache-dir aiohttp aiortc av
