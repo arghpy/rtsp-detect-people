@@ -203,9 +203,7 @@ if __name__ == "__main__":
     stream_reader_thread.start()
 
     if ARGS["ENABLE_WEB"]:
-        HLS_WRITER = app.integrations.webserver.hls_writer(
-            app.integrations.webserver.HLS_DIR, video_width, video_height, video_fps
-        )
+        WEB_TRACK = app.integrations.webserver.create_track(video_fps)
         web_thread = threading.Thread(
             target=app.integrations.webserver.start_web_server,
             args=(ARGS["WEB_PORT"],),
@@ -343,7 +341,7 @@ if __name__ == "__main__":
                 start_timeout = time.time()
 
             if ARGS["ENABLE_WEB"]:
-                HLS_WRITER.stdin.write(video_frame.tobytes())
+                WEB_TRACK.push(video_frame)
 
             # Show display
             if ARGS["SHOW_DISPLAY"]:
