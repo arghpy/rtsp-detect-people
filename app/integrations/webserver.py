@@ -101,6 +101,7 @@ def start_web_server(port):
 
 async def offer(request):
     print("Offer handler loop id:", id(asyncio.get_event_loop()))
+    print(f"Active peers: {len(peers)}")
     params = await request.json()
     sdp = params["sdp"]
     sdp = "\r\n".join(
