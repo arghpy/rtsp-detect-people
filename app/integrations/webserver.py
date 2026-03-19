@@ -1,14 +1,15 @@
 import aioice.ice
-
-_original_gather = aioice.ice.Connection.gather_candidates
+_orig_create = aioice.ice.Connection.gather_candidates
 
 
 async def _patched_gather(self):
-    print(f"gather_candidates called, addresses to try: {aioice.ice.get_host_addresses(True, True)[:3]}")
-    await _original_gather(self)
-    print(f"gather done, candidates: {len(self.local_candidates)}")
-    for c in self.local_candidates[:3]:
-        print(f"  {c}")
+    import traceback
+    try:
+        await _orig_create(self)
+    except Exception as e:
+        print("gather_candidates EXCEPTION:", e)
+        traceback.print_exc()
+    print(f"candidates after gather: {len(self.local_candidates)}")
 
 aioice.ice.Connection.gather_candidates = _patched_gather
 
