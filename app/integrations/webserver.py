@@ -70,22 +70,13 @@ async def offer(request):
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
-    # Wait for ICE gathering to complete so all candidates
-    # are included in the answer SDP we return to the browser
-    ice_done = asyncio.Event()
+    # Print the actual SDP we're sending back
+    print("Answer SDP candidates:")
+    for line in pc.localDescription.sdp.splitlines():
+        if line.startswith("a=candidate") or line.startswith("a=end-of-candidates"):
+            print(" ", line)
 
-    @pc.on("icegatheringstatechange")
-    async def on_ice():
-        if pc.iceGatheringState == "complete":
-            ice_done.set()
-
-    if pc.iceGatheringState != "complete":
-        await asyncio.wait_for(ice_done.wait(), timeout=10)
-
-    return web.json_response({
-        "sdp": pc.localDescription.sdp,
-        "type": pc.localDescription.type
-    })
+    return web.json_response({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type})
 
 
 async def index(_):
