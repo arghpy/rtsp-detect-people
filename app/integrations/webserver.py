@@ -26,7 +26,6 @@ class FrameTrack(VideoStreamTrack):
         self.latest = None
 
     def push(self, bgr):
-        print(bgr.shape, bgr.mean())  # should print shape + a non-zero mean
         self.latest = bgr.copy()  # copy so the main loop can't mutate it mid-send
         try:
             asyncio.get_event_loop().call_soon_threadsafe(self.new_frame.set)
