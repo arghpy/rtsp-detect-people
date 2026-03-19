@@ -13,6 +13,9 @@ relay = MediaRelay()
 track = None  # set by create_track() before the server starts
 peers = set()
 
+import os
+os.environ["AIOICE_LOG_DETAILS"] = "1"  # temporary, to see what aioice finds
+
 
 class FrameTrack(VideoStreamTrack):
     kind = "video"
