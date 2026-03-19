@@ -26,13 +26,18 @@ class FrameTrack(VideoStreamTrack):
         self.latest = None
 
     def push(self, bgr):
-        self.latest = bgr
+        print(bgr.shape, bgr.mean())  # should print shape + a non-zero mean
+        self.latest = bgr.copy()  # copy so the main loop can't mutate it mid-send
         try:
             asyncio.get_event_loop().call_soon_threadsafe(self.new_frame.set)
         except RuntimeError:
             pass
 
     async def recv(self):
+        # Don't proceed until we actually have a frame
+        while self.latest is None:
+            await asyncio.sleep(0.01)
+
         await self.new_frame.wait()
         self.new_frame.clear()
 
@@ -40,9 +45,7 @@ class FrameTrack(VideoStreamTrack):
         frame.pts = self.pts
         frame.time_base = self.time_base
         self.pts += int(90_000 / self.fps)
-
-        await asyncio.sleep(1 / self.fps)
-        return frame
+        return frame  # no sleep here
 
 
 def create_track(fps):
