@@ -66,6 +66,7 @@ def start_web_server(port):
 
     # Create track HERE, inside the loop that will run it
     track = FrameTrack(_fps)
+    print("Track created, loop id:", id(loop))
 
     app = web.Application()
     app.router.add_get("/", index)
@@ -73,6 +74,7 @@ def start_web_server(port):
     app.on_shutdown.append(on_shutdown)
 
     async def run():
+        print("Running in loop id:", id(asyncio.get_event_loop()))
         runner = web.AppRunner(app)
         await runner.setup()
         await web.TCPSite(runner, "0.0.0.0", port).start()
@@ -83,6 +85,7 @@ def start_web_server(port):
 
 
 async def offer(request):
+    print("Offer handler loop id:", id(asyncio.get_event_loop()))
     params = await request.json()
     sdp = params["sdp"]
     sdp = "\r\n".join(
@@ -97,6 +100,7 @@ async def offer(request):
     sdp = params["sdp"].replace("a=ice-options:trickle\r\n", "")
 
     pc = RTCPeerConnection()
+    print("PC created")
     peers.add(pc)
 
     @pc.on("connectionstatechange")
@@ -110,6 +114,7 @@ async def offer(request):
     await pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type=params["type"]))
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
+    print("setLocalDescription done, iceGatheringState:", pc.iceGatheringState)
 
     print("Answer SDP candidates:")
     for line in pc.localDescription.sdp.splitlines():
