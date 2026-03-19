@@ -65,12 +65,15 @@ async def offer(request):
             await pc.close()
             peers.discard(pc)
 
-    pc.addTrack(track)
+    pc.addTrack(relay.subscribe(track))
     await pc.setRemoteDescription(RTCSessionDescription(**params))
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
-    # Print the actual SDP we're sending back
+    # Wait explicitly for ICE gathering to complete
+    while pc.iceGatheringState != "complete":
+        await asyncio.sleep(0.1)
+
     print("Answer SDP candidates:")
     for line in pc.localDescription.sdp.splitlines():
         if line.startswith("a=candidate") or line.startswith("a=end-of-candidates"):
