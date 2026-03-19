@@ -47,10 +47,39 @@ class FrameTrack(VideoStreamTrack):
         return frame  # no sleep here
 
 
+track = None
+
+
 def create_track(fps):
+    # just store fps, actual track created inside the loop
+    global _fps
+    _fps = fps
+
+
+_fps = 25
+
+
+def start_web_server(port):
     global track
-    track = FrameTrack(fps)
-    return track
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
+    # Create track HERE, inside the loop that will run it
+    track = FrameTrack(_fps)
+
+    app = web.Application()
+    app.router.add_get("/", index)
+    app.router.add_post("/offer", offer)
+    app.on_shutdown.append(on_shutdown)
+
+    async def run():
+        runner = web.AppRunner(app)
+        await runner.setup()
+        await web.TCPSite(runner, "0.0.0.0", port).start()
+        logger.info("Streaming on http://0.0.0.0:%d", port)
+        await asyncio.Event().wait()
+
+    loop.run_until_complete(run())
 
 
 async def offer(request):
@@ -96,25 +125,6 @@ async def index(_):
 
 async def on_shutdown(app):
     await asyncio.gather(*[pc.close() for pc in peers])
-
-
-def start_web_server(port):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    app = web.Application()
-    app.router.add_get("/", index)
-    app.router.add_post("/offer", offer)
-    app.on_shutdown.append(on_shutdown)
-
-    async def run():
-        runner = web.AppRunner(app)
-        await runner.setup()
-        await web.TCPSite(runner, "0.0.0.0", port).start()
-        logger.info("Streaming on http://0.0.0.0:%d", port)
-        await asyncio.Event().wait()
-
-    loop.run_until_complete(run())
 
 
 HTML = """<!DOCTYPE html>

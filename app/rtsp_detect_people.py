@@ -203,13 +203,14 @@ if __name__ == "__main__":
     stream_reader_thread.start()
 
     if ARGS["ENABLE_WEB"]:
-        WEB_TRACK = app.integrations.webserver.create_track(video_fps)
+        app.integrations.webserver.create_track(video_fps)
         web_thread = threading.Thread(
             target=app.integrations.webserver.start_web_server,
             args=(ARGS["WEB_PORT"],),
             daemon=True,
         )
         web_thread.start()
+        WEB_TRACK = app.integrations.webserver.track  # grab reference after creation
 
     if ARGS["SAVE_VIDEO"]:
         output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
