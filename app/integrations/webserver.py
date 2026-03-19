@@ -55,6 +55,9 @@ def create_track(fps):
 
 async def offer(request):
     params = await request.json()
+    sdp = params["sdp"]
+    print("trickle in raw sdp:", "trickle" in sdp)
+    print("repr of trickle line:", repr([l for l in sdp.splitlines() if "trickle" in l]))
 
     # aiortc doesn't support trickle ICE — strip it so aiortc
     # embeds all candidates directly in the answer SDP
