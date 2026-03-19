@@ -210,6 +210,11 @@ if __name__ == "__main__":
             daemon=True,
         )
         web_thread.start()
+
+        # Wait until the track is actually created inside the thread
+        while app.integrations.webserver.track is None:
+            time.sleep(0.05)
+
         WEB_TRACK = app.integrations.webserver.track  # grab reference after creation
 
     if ARGS["SAVE_VIDEO"]:
