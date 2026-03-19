@@ -55,6 +55,11 @@ def create_track(fps):
 
 async def offer(request):
     params = await request.json()
+
+    # aiortc doesn't support trickle ICE — strip it so aiortc
+    # embeds all candidates directly in the answer SDP
+    sdp = params["sdp"].replace("a=ice-options:trickle\r\n", "")
+
     pc = RTCPeerConnection()
     peers.add(pc)
 
@@ -66,13 +71,9 @@ async def offer(request):
             peers.discard(pc)
 
     pc.addTrack(relay.subscribe(track))
-    await pc.setRemoteDescription(RTCSessionDescription(**params))
+    await pc.setRemoteDescription(RTCSessionDescription(sdp=sdp, type=params["type"]))
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
-
-    # Wait explicitly for ICE gathering to complete
-    while pc.iceGatheringState != "complete":
-        await asyncio.sleep(0.1)
 
     print("Answer SDP candidates:")
     for line in pc.localDescription.sdp.splitlines():
