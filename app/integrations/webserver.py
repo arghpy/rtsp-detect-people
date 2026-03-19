@@ -121,7 +121,10 @@ HTML = """<!DOCTYPE html>
 <body>
   <video id="v" autoplay muted playsinline></video>
   <script>
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+    const pc = new RTCPeerConnection({
+      iceServers: [],  // no STUN, force local candidates only
+      iceTransportPolicy: "all"
+    });
     pc.addTransceiver("video", { direction: "recvonly" });
     pc.ontrack = e => document.getElementById("v").srcObject = e.streams[0];
 
