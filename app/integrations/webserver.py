@@ -13,9 +13,6 @@ relay = MediaRelay()
 track = None  # set by create_track() before the server starts
 peers = set()
 
-import os
-os.environ["AIOICE_LOG_DETAILS"] = "1"  # temporary, to see what aioice finds
-
 
 class FrameTrack(VideoStreamTrack):
     kind = "video"
@@ -68,16 +65,27 @@ async def offer(request):
             await pc.close()
             peers.discard(pc)
 
-    @pc.on("iceconnectionstatechange")
-    async def on_ice_conn():
-        print("ice connection:", pc.iceConnectionState)
-
     pc.addTrack(relay.subscribe(track))
     await pc.setRemoteDescription(RTCSessionDescription(**params))
     answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
-    return web.json_response({"sdp": pc.localDescription.sdp, "type": pc.localDescription.type})
+    # Wait for ICE gathering to complete so all candidates
+    # are included in the answer SDP we return to the browser
+    ice_done = asyncio.Event()
+
+    @pc.on("icegatheringstatechange")
+    async def on_ice():
+        if pc.iceGatheringState == "complete":
+            ice_done.set()
+
+    if pc.iceGatheringState != "complete":
+        await asyncio.wait_for(ice_done.wait(), timeout=10)
+
+    return web.json_response({
+        "sdp": pc.localDescription.sdp,
+        "type": pc.localDescription.type
+    })
 
 
 async def index(_):
