@@ -8,6 +8,41 @@ import app.utils.logger
 import app.yolo.detection
 
 
+def mediamtx_stream(width, height, fps, path="live") -> subprocess.Popen:
+    """Stream to MediaMTX for WebRTC"""
+    stream_cmd = [
+        "ffmpeg",
+        "-loglevel", "error",
+        "-y",
+        "-f", "rawvideo",
+        "-pix_fmt", "bgr24",
+        "-s", f"{width}x{height}",
+        "-r", f"{fps}",
+        "-i", "-",
+        "-an",
+    ]
+    if app.yolo.detection.CUDA_ENABLED:
+        stream_cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhq"])
+    else:
+        stream_cmd.extend([
+            "-c:v", "libx264",
+            "-preset", "veryfast",
+            "-tune", "zerolatency",  # reduces latency for live streaming
+            "-x264-params", f"keyint={fps*2}:min-keyint={fps}",
+        ])
+
+    stream_cmd.extend([
+        "-g", f"{fps*2}",
+        "-pix_fmt", "yuv420p",
+        "-f", "rtsp",
+        "-rtsp_transport", "tcp",
+        "rtsp://mediamtx:8554/" + path,
+    ])
+    # pylint: disable=consider-using-with
+    mediamtx_streamer = subprocess.Popen(stream_cmd, stdin=subprocess.PIPE)
+    return mediamtx_streamer
+
+
 def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
     """Write stream to file"""
     app.utils.logger.pprint(f"Saving video to {video_path}")
