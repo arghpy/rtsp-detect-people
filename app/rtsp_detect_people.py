@@ -35,7 +35,7 @@ ARGS["SAVE_VIDEO"] = False
 ARGS["SEND_EMAIL"] = False
 ARGS["SEND_NTFY"] = False
 ARGS["SHOW_DISPLAY"] = False
-ARGS["WEB_PORT"] = None
+ARGS["STREAM_PATH"] = None
 
 
 # pylint: disable=unused-argument
@@ -52,7 +52,11 @@ def handle_signals(signum, exec_frame):
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
-    web_thread.join(timeout=2)
+
+    # Stop MediaMTX
+    if ARGS["ENABLE_WEB"]:
+        MEDIAMTX_WRITER.stdin.close()
+        MEDIAMTX_WRITER.wait()
 
     # Stop writer
     if ARGS["SAVE_VIDEO"]:
@@ -95,7 +99,7 @@ def parse_arguments(argv):
         elif passed_args[0] == "-w" or passed_args[0] == "--web":
             ARGS["ENABLE_WEB"] = True
             passed_args.pop(0)
-            ARGS["WEB_PORT"] = passed_args[0]
+            ARGS["STREAM_PATH"] = passed_args[0]
         elif passed_args[0] == "--ha-trigger":
             ARGS["HA_TRIGGER"] = True
         else:
@@ -203,15 +207,9 @@ if __name__ == "__main__":
     stream_reader_thread.start()
 
     if ARGS["ENABLE_WEB"]:
-        HLS_WRITER = app.integrations.webserver.hls_writer(
-            app.integrations.webserver.HLS_DIR, video_width, video_height, video_fps
+        MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
+            video_width, video_height, video_fps, ARGS['STREAM_PATH']
         )
-        web_thread = threading.Thread(
-            target=app.integrations.webserver.start_web_server,
-            args=(ARGS["WEB_PORT"],),
-            daemon=True,
-        )
-        web_thread.start()
 
     if ARGS["SAVE_VIDEO"]:
         output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
@@ -288,6 +286,12 @@ if __name__ == "__main__":
                 HA_TOGGLE = False
                 app.integrations.home_assistant.ha_trigger_boolean(False)
 
+        # Write all the frames at once
+        if ARGS["ENABLE_WEB"] and MEDIAMTX_WRITER is not None:
+            MEDIAMTX_WRITER.stdin.write(
+                b"".join(f.tobytes() for f, _ in processed_frames)
+            )
+
         for video_frame, PERSON_DETECTED in processed_frames:
             # Send email
             if ARGS["SEND_EMAIL"]:
@@ -341,9 +345,6 @@ if __name__ == "__main__":
                         app.utils.logger.eprint("Failed to send ntfy")
 
                 start_timeout = time.time()
-
-            if ARGS["ENABLE_WEB"]:
-                HLS_WRITER.stdin.write(video_frame.tobytes())
 
             # Show display
             if ARGS["SHOW_DISPLAY"]:
@@ -408,7 +409,11 @@ if __name__ == "__main__":
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
-    web_thread.join(timeout=2)
+
+    # Stop MediaMTX
+    if ARGS["ENABLE_WEB"]:
+        MEDIAMTX_WRITER.stdin.close()
+        MEDIAMTX_WRITER.wait()
 
     # Stop writer
     if ARGS["SAVE_VIDEO"]:
