@@ -27,7 +27,7 @@ For people who would like to send an email via Gmail, the following is required:
 ## Running
 
 ```bash
-python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-d/--display] [-s/--save] [-e/--email] [-w/--web PORT]
+python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] [-e/--email] [-w/--web PORT]
 
 DESCRIPTION
        Detect people from RTSP stream.
@@ -40,23 +40,19 @@ OPTIONS
 -h/--help,
        print this help message
 
--d/--display,
-       view footage live
-
 -s/--save,
        save live footage
 
 -e/--email,
        send email
 
--w/--web PORT,
-       Start web server on port
+-w/--web PATH,
+       Start web server on path
 ```
 
 Options:
 - **-h/--help**: print the help message
 - **-c/--config FILE**: mandatory
-- **-d/--display**: requires a display to run on
 - **-s/--save**: save captured video with the name and path specified in the configuration file,
 in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-second.mkv*
 - **-e/--email**: send email
