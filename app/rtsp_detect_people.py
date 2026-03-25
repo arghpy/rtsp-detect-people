@@ -5,7 +5,6 @@
 
 import os
 import queue
-import shutil
 import signal
 import sys
 import threading
@@ -33,7 +32,6 @@ ARGS["HA_TRIGGER"] = False
 ARGS["SAVE_VIDEO"] = False
 ARGS["SEND_EMAIL"] = False
 ARGS["SEND_NTFY"] = False
-ARGS["SHOW_DISPLAY"] = False
 ARGS["STREAM_PATH"] = None
 
 
@@ -62,10 +60,6 @@ def handle_signals(signum, exec_frame):
         OUT_VIDEO_WRITER.stdin.close()
         OUT_VIDEO_WRITER.wait()
 
-    # Destroy window if display was set
-    if ARGS["SHOW_DISPLAY"]:
-        cv2.destroyAllWindows()
-
     sys.exit(0)
 
 
@@ -83,8 +77,6 @@ def parse_arguments(argv):
         if passed_args[0] == "-h" or passed_args[0] == "--help":
             app.utils.help.usage(argv)
             sys.exit(0)
-        elif passed_args[0] == "-d" or passed_args[0] == "--display":
-            ARGS["SHOW_DISPLAY"] = True
         elif passed_args[0] == "-s" or passed_args[0] == "--save":
             ARGS["SAVE_VIDEO"] = True
         elif passed_args[0] == "-e" or passed_args[0] == "--email":
@@ -394,13 +386,6 @@ if __name__ == "__main__":
 
                 start_timeout = time.time()
 
-            # Show display
-            if ARGS["SHOW_DISPLAY"]:
-                cv2.imshow(app.utils.config.CONFIG["RTSP_FEED"], video_frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q"):
-                    break
-
     # Release and close threading
     executor.shutdown(wait=True)
 
@@ -417,7 +402,3 @@ if __name__ == "__main__":
     if ARGS["SAVE_VIDEO"]:
         OUT_VIDEO_WRITER.stdin.close()
         OUT_VIDEO_WRITER.wait()
-
-    # Destroy window if display was set
-    if ARGS["SHOW_DISPLAY"]:
-        cv2.destroyAllWindows()

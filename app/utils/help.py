@@ -21,7 +21,6 @@ def usage(argv):
     options = (
         ("-c/--config FILE", "specify configuration file", True),
         ("-h/--help", "print this help message", False),
-        ("-d/--display", "view footage live", False),
         ("-s/--save", "save live footage", False),
         ("-e/--email", "send email", False),
         ("-w/--web PORT", "Start web server on port", False),
