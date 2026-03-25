@@ -1,4 +1,13 @@
 services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    ports:
+      - 8554:8554   # RTSP (ffmpeg pushes here)
+      - 8889:8889   # WebRTC (browsers connect here)
+      - 8189:8189/udp
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
   rtsp_detect:
     build: .
     user: 1000:1000
@@ -6,15 +15,12 @@ services:
     volumes:
       - ./:/usr/src/app
     working_dir: /usr/src/app
-    ports:
-      - 5000:5000
     command:
       [
-        "python3",
-        "-m", "app.rtsp_detect_people",
+        "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration.json",
         "--save",
         "--email",
         "--ntfy",
-        "--web", "5000"
+        "--web", "camera"
       ]

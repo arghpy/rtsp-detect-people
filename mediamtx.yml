@@ -1,0 +1,9 @@
+logLevel: warn
+
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts:
+  - <IP>   # your host machine's LAN IP
+
+paths:
+  all:
+    source: publisher
