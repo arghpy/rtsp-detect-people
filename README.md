@@ -4,16 +4,7 @@ Detect people from an RTSP stream using YOLOv8n model.
 
 ## Requirements
 
-A standard installation of `python3` should contain almost all libraries used in the program.
-The following need to be additionally installed (as packages or via pip):
-- `opencv` for `cv2` python library
-- `ultralytics`
-
-Or, you can use the docker image to run the program, without the need to install the libraries.
-
-## Installation
-
-After satisfying the requirements, simply run `rtsp_detect_people.py` with a configuration file.
+Use the docker image to run the program, without the need to install the libraries.
 
 ## Configuration
 
@@ -25,6 +16,12 @@ For people who would like to send an email via Gmail, the following is required:
 - port: 465
 
 ## Running
+
+```bash
+docker compose up -d
+```
+
+The program by itself contains the following options:
 
 ```bash
 python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] [-e/--email] [-w/--web PORT]
@@ -59,31 +56,58 @@ in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-seco
 
 ## Notes
 
-If using docker, don't forget to pass the ports between the container and host, in order to be able
-to view the live stream.
-
 If you have a CUDA capable gpu, use this docker compose file:
 ```yaml
 services:
-  rtsp_detect:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    ports:
+      - 8554:8554   # RTSP (ffmpeg pushes here)
+      - 8889:8889   # WebRTC (browsers connect here)
+      - 8189:8189/udp
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+  camera1:
     build: .
     user: 1000:1000
     restart: unless-stopped
     volumes:
       - ./:/usr/src/app
     working_dir: /usr/src/app
-    ports:
-      - 5000:5000
     command:
       [
-        "python3",
-        "-m", "app.rtsp_detect_people",
-        "--config",
-        "configuration.json",
+        "python3", "-m", "app.rtsp_detect_people",
+        "--config", "configuration-camera1.json",
         "--save",
         "--email",
-        "--detect",
-        "--web", "5000"
+        "--ntfy",
+        "--web", "camera1"
+      ]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
+  camera2:
+    build: .
+    user: 1000:1000
+    restart: unless-stopped
+    volumes:
+      - ./:/usr/src/app
+    working_dir: /usr/src/app
+    command:
+      [
+        "python3", "-m", "app.rtsp_detect_people",
+        "--config", "configuration-camera2.json",
+        "--save",
+        "--email",
+        "--ntfy",
+        "--web", "camera2"
       ]
     deploy:
       resources:
