@@ -54,6 +54,10 @@ Options:
 in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-second.mkv*
 - **-e/--email**: send email
 
+## Viewing
+
+The stream can be seen on **http://<IP>:8889/<PATH>**.
+
 ## Notes
 
 If you have a CUDA capable gpu, use this docker compose file:
