@@ -267,6 +267,7 @@ if __name__ == "__main__":
             continue
 
         processed_frames = app.yolo.detection.process_frames(frames)
+        processed_frames_bytes = b"".join(f.tobytes() for f, _ in processed_frames)
 
         # Check if any detection is true
         OCCUPANCY_DETECTED = any(detection for _, detection in processed_frames)
@@ -284,12 +285,61 @@ if __name__ == "__main__":
                 HA_TOGGLE = False
                 app.integrations.home_assistant.ha_trigger_boolean(False)
 
-        # Write all the frames at once
+        # Send to MediaMTX
         if ARGS["ENABLE_WEB"] and MEDIAMTX_WRITER is not None:
-            MEDIAMTX_WRITER.stdin.write(
-                b"".join(f.tobytes() for f, _ in processed_frames)
-            )
+            MEDIAMTX_WRITER.stdin.write(processed_frames_bytes)
 
+        # Save video
+        if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
+            now = datetime.now()
+
+            # Change every hour
+            if now.hour != hour:
+                # Release before reconstructing
+                OUT_VIDEO_WRITER.stdin.close()
+                OUT_VIDEO_WRITER.wait()
+
+                year = now.year
+                month = now.month
+                day = now.day
+                hour = now.hour
+                minute = now.minute
+                second = now.second
+
+                output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
+                output_video_path = (
+                    f"{output_video_path}"
+                    f"/{year}"
+                    f"/{month}"
+                    f"/{day}"
+                    f"/{hour}"
+                )
+
+                output_video_name = (
+                    f"{app.utils.config.CONFIG['VIDEO_NAME']}_{year}"
+                    f"-{month}"
+                    f"-{day}"
+                    f"_{hour}"
+                    f"-{minute}"
+                    f"-{second}"
+                    f".{output_video_format}"
+                )
+
+                output_video = f"{output_video_path}/{output_video_name}"
+
+                SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+
+                try:
+                    os.makedirs(SAVE_IMAGE_PATH)
+                except FileExistsError:
+                    pass
+
+                OUT_VIDEO_WRITER = app.utils.video.writer_stream(
+                    output_video, video_width, video_height, video_fps
+                )
+            OUT_VIDEO_WRITER.stdin.write(processed_frames_bytes)
+
+        # Loop all frames
         for video_frame, PERSON_DETECTED in processed_frames:
             # Send email
             if ARGS["SEND_EMAIL"]:
@@ -350,56 +400,6 @@ if __name__ == "__main__":
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q"):
                     break
-
-            # Save video
-            if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
-                now = datetime.now()
-
-                # Change every hour
-                if now.hour != hour:
-                    # Release before reconstructing
-                    OUT_VIDEO_WRITER.stdin.close()
-                    OUT_VIDEO_WRITER.wait()
-
-                    year = now.year
-                    month = now.month
-                    day = now.day
-                    hour = now.hour
-                    minute = now.minute
-                    second = now.second
-
-                    output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
-                    output_video_path = (
-                        f"{output_video_path}"
-                        f"/{year}"
-                        f"/{month}"
-                        f"/{day}"
-                        f"/{hour}"
-                    )
-
-                    output_video_name = (
-                        f"{app.utils.config.CONFIG['VIDEO_NAME']}_{year}"
-                        f"-{month}"
-                        f"-{day}"
-                        f"_{hour}"
-                        f"-{minute}"
-                        f"-{second}"
-                        f".{output_video_format}"
-                    )
-
-                    output_video = f"{output_video_path}/{output_video_name}"
-
-                    SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-
-                    try:
-                        os.makedirs(SAVE_IMAGE_PATH)
-                    except FileExistsError:
-                        pass
-
-                    OUT_VIDEO_WRITER = app.utils.video.writer_stream(
-                        output_video, video_width, video_height, video_fps
-                    )
-                OUT_VIDEO_WRITER.stdin.write(video_frame.tobytes())
 
     # Release and close threading
     executor.shutdown(wait=True)
