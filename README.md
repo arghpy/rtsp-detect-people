@@ -56,7 +56,7 @@ in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-seco
 
 ## Viewing
 
-The stream can be seen on **http://<IP>:8889/<PATH>**.
+The stream can be seen on **http://IP:8889/PATH**.
 
 ## Notes
 
