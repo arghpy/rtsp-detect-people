@@ -19,7 +19,6 @@ import requests
 import app.integrations.email
 import app.integrations.home_assistant
 import app.integrations.ntfy
-import app.integrations.webserver
 import app.utils.config
 import app.utils.help
 import app.utils.logger
@@ -67,7 +66,6 @@ def handle_signals(signum, exec_frame):
     if ARGS["SHOW_DISPLAY"]:
         cv2.destroyAllWindows()
 
-    shutil.rmtree(app.integrations.webserver.HLS_DIR, ignore_errors=True)
     sys.exit(0)
 
 
@@ -423,5 +421,3 @@ if __name__ == "__main__":
     # Destroy window if display was set
     if ARGS["SHOW_DISPLAY"]:
         cv2.destroyAllWindows()
-
-    shutil.rmtree(app.integrations.webserver.HLS_DIR, ignore_errors=True)
