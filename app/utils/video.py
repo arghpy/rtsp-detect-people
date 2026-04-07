@@ -132,6 +132,7 @@ def reader_stream(rtsp_url, fps) -> subprocess.Popen:
         [
             "-rtsp_transport",
             "tcp",
+            "-stimeout", "5000000",     # 5 sec
             "-fflags", "nobuffer",
             "-flags", "low_delay",
             "-i",
@@ -175,65 +176,43 @@ def terminate_pipe_process(pipe: subprocess.Popen):
         pipe.kill()
 
 
-def reconnect_pipe_process(pipe: subprocess.Popen, rtsp_url, fps):
-    """Safely reconnect to stream, retry until ffmpeg is alive."""
-    terminate_pipe_process(pipe)
-
-    attempt = 0
-    while True:
-        attempt += 1
-        app.utils.logger.eprint(f"Reconnecting attempt #{attempt}...")
-
-        new_pipe = reader_stream(rtsp_url, fps)
-        time.sleep(1.0)  # give ffmpeg a moment to start
-
-        if new_pipe and new_pipe.poll() is None and new_pipe.stdout:
-            app.utils.logger.pprint("Successfully reconnected")
-            return new_pipe
-
-        app.utils.logger.eprint("ffmpeg failed to start or exited immediately")
-        terminate_pipe_process(new_pipe)
-        time.sleep(2)
-
-
 # pylint: disable=too-many-arguments,too-many-positional-arguments
 def reader_frames_thread(frame_queue, width, height, fps, rtsp_url, stop_event):
     """Continuously add frames in queue to be processed"""
     app.utils.logger.pprint("Reader thread started")
 
-    pipe = reader_stream(rtsp_url, fps)
-    if pipe is None or pipe.returncode is not None:
-        stop_event.set()
-
-    dropped_frames = 0
-
     while not stop_event.is_set():
-        frame = None
-        try:
-            frame = read_frame(pipe.stdout, width, height)
-        # pylint: disable=broad-exception-caught
-        except Exception as e:
-            app.utils.logger.eprint(f"Exception reading frame: {e}")
-            dropped_frames += 1
+        pipe = reader_stream(rtsp_url, fps)
+
+        if pipe is None or pipe.stdout is None:
+            app.utils.logger.eprint("Failed to start ffmpeg, retrying...")
+            time.sleep(2)
             continue
 
-        if frame is None:
-            dropped_frames += 1
+        while not stop_event.is_set():
+            # If ffmpeg died → restart
+            if pipe.poll() is not None:
+                app.utils.logger.eprint("ffmpeg exited, restarting...")
+                break
 
-            if dropped_frames >= fps * 2:
-                app.utils.logger.eprint(f"{dropped_frames} consecutive frames missing. Reconnecting")
-                pipe = reconnect_pipe_process(pipe, rtsp_url, fps)
-                dropped_frames = 0
-        else:
-            dropped_frames = 0
+            try:
+                frame = read_frame(pipe.stdout, width, height)
+            except Exception as e:
+                app.utils.logger.eprint(f"Exception reading frame: {e}")
+                break
+
+            if frame is None:
+                # ffmpeg will try to reconnect internally
+                continue
 
             try:
                 frame_queue.put(frame, timeout=1)
             except queue.Full:
-                # Queue full → drop frame to avoid blocking
+                # drop frame if queue full
                 pass
 
-    terminate_pipe_process(pipe)
+        terminate_pipe_process(pipe)
+        time.sleep(1)  # small delay before restart
 
 
 def probe_stream(rtsp_url) -> tuple[int, int, int]:

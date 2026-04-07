@@ -279,7 +279,26 @@ if __name__ == "__main__":
 
         # Send to MediaMTX
         if ARGS["ENABLE_WEB"] and MEDIAMTX_WRITER is not None:
-            MEDIAMTX_WRITER.stdin.write(processed_frames_bytes)
+            try:
+                # detect dead process
+                if MEDIAMTX_WRITER.poll() is not None:
+                    app.utils.logger.eprint("MediaMTX writer died, restarting...")
+                    MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
+                        video_width, video_height, video_fps, ARGS['STREAM_PATH']
+                    )
+
+                MEDIAMTX_WRITER.stdin.write(processed_frames_bytes)
+
+            except BrokenPipeError:
+                app.utils.logger.eprint("Broken pipe to MediaMTX, restarting writer...")
+                try:
+                    MEDIAMTX_WRITER.stdin.close()
+                except Exception:
+                    pass
+
+                MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
+                    video_width, video_height, video_fps, ARGS['STREAM_PATH']
+                )
 
         # Save video
         if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
@@ -329,7 +348,13 @@ if __name__ == "__main__":
                 OUT_VIDEO_WRITER = app.utils.video.writer_stream(
                     output_video, video_width, video_height, video_fps
                 )
-            OUT_VIDEO_WRITER.stdin.write(processed_frames_bytes)
+            try:
+                OUT_VIDEO_WRITER.stdin.write(processed_frames_bytes)
+            except BrokenPipeError:
+                app.utils.logger.eprint("Video writer died, restarting...")
+                OUT_VIDEO_WRITER = app.utils.video.writer_stream(
+                    output_video, video_width, video_height, video_fps
+                )
 
         # Loop all frames
         for video_frame, PERSON_DETECTED in processed_frames:
