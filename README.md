@@ -57,6 +57,7 @@ in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-seco
 ## Viewing
 
 The stream can be seen on **http://IP:8889/PATH**.
+It uses the capabilities of [MediaMTX](https://mediamtx.org/) for display the stream with the performant WebRTC.
 
 ## Notes
 
