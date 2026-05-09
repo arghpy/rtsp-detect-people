@@ -22,7 +22,7 @@ def usage(argv):
         ("-c/--config FILE", "specify configuration file", True),
         ("-h/--help", "print this help message", False),
         ("-s/--save", "save live footage", False),
-        ("-w/--web PORT", "Start web server on port", False),
+        ("--camera CAMERA", "Camera configured in mediaMTX", False),
         ("--ha-trigger", "Home Assistant: trigger while person detected", False),
     )
 

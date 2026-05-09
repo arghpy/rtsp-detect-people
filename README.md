@@ -19,7 +19,7 @@ docker compose up -d
 The program by itself contains the following options:
 
 ```bash
-python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] [-w/--web PORT]
+python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] --camera CAMERA
 
 DESCRIPTION
        Detect people from RTSP stream.
@@ -35,8 +35,8 @@ OPTIONS
 -s/--save,
        save live footage
 
--w/--web PATH,
-       Start web server on path
+--camera CAMERA,
+       Camera configured in mediaMTX
 ```
 
 Options:
@@ -77,7 +77,7 @@ services:
         "--config", "configuration-camera1.json",
         "--save",
         "--ntfy",
-        "--web", "camera1"
+        "--camera", "front"
       ]
     deploy:
       resources:
@@ -101,7 +101,7 @@ services:
         "--config", "configuration-camera2.json",
         "--save",
         "--ntfy",
-        "--web", "camera2"
+        "--camera", "back"
       ]
     deploy:
       resources:

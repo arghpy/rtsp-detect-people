@@ -9,5 +9,6 @@ pathDefaults:
     sourceOnDemand: no
 
 paths:
+  camera-live: # Processed video is here
   camera:
-    source: rtsp://<USER>:<PASSWORD>@<CAMERA_IP>:$RTSP_PORT/<RTSP_FEED>
+    source: rtsp://<USER>:<PASSWORD>@<CAMERA_IP>:554/<RTSP_FEED>
