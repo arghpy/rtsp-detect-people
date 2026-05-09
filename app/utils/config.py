@@ -61,17 +61,6 @@ def process_configuration(config_file):
         app.utils.logger.eprint("[CONFIG] Video won't pe saved")
 
     try:
-        # Email
-        CONFIG["EMAIL_SUBJECT"] = configuration["email"]["subject"]
-        CONFIG["EMAIL_FROM"] = configuration["email"]["user"]
-        CONFIG["EMAIL_TO"] = configuration["email"]["recipients"]
-        CONFIG["EMAIL_SERVER"] = configuration["email"]["server"]
-        CONFIG["EMAIL_PORT"] = configuration["email"]["port"]
-        CONFIG["EMAIL_PASSWORD"] = configuration["email"]["password"]
-    except KeyError:
-        app.utils.logger.eprint("[CONFIG] email won't be sent")
-
-    try:
         # NTFY
         CONFIG["NTFY_URL"] = configuration["ntfy"]["url"]
         CONFIG["NTFY_TAG"] = configuration["ntfy"]["tag"]

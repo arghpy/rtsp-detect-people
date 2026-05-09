@@ -15,7 +15,6 @@ from datetime import datetime
 import cv2
 import requests
 
-import app.integrations.email
 import app.integrations.home_assistant
 import app.integrations.ntfy
 import app.utils.config
@@ -30,7 +29,6 @@ ARGS["CONFIGURATION_FILE"] = None
 ARGS["ENABLE_WEB"] = False
 ARGS["HA_TRIGGER"] = False
 ARGS["SAVE_VIDEO"] = False
-ARGS["SEND_EMAIL"] = False
 ARGS["SEND_NTFY"] = False
 ARGS["STREAM_PATH"] = None
 
@@ -79,8 +77,6 @@ def parse_arguments(argv):
             sys.exit(0)
         elif passed_args[0] == "-s" or passed_args[0] == "--save":
             ARGS["SAVE_VIDEO"] = True
-        elif passed_args[0] == "-e" or passed_args[0] == "--email":
-            ARGS["SEND_EMAIL"] = True
         elif passed_args[0] == "-n" or passed_args[0] == "--ntfy":
             ARGS["SEND_NTFY"] = True
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
@@ -114,13 +110,8 @@ if __name__ == "__main__":
 
     OUT_VIDEO_WRITER = None
     # pylint: disable=invalid-name
-    email_sent = False
-    email_future = None
     start_timeout = 0
     STOP_EVENT = threading.Event()
-
-    # Create executor
-    executor = ThreadPoolExecutor(max_workers=1)
 
     if ARGS["CONFIGURATION_FILE"] is None:
         app.utils.logger.eprint("Configuration not specified.")
@@ -135,16 +126,6 @@ if __name__ == "__main__":
         or app.utils.config.CONFIG["VIDEO_FPS"] is None
     ):
         ARGS["SAVE_VIDEO"] = False
-
-    if (
-        app.utils.config.CONFIG["EMAIL_SUBJECT"] is None
-        or app.utils.config.CONFIG["EMAIL_FROM"] is None
-        or app.utils.config.CONFIG["EMAIL_TO"] is None
-        or app.utils.config.CONFIG["EMAIL_SERVER"] is None
-        or app.utils.config.CONFIG["EMAIL_PORT"] is None
-        or app.utils.config.CONFIG["EMAIL_PASSWORD"] is None
-    ):
-        ARGS["SEND_EMAIL"] = False
 
     if (
         app.utils.config.CONFIG["NTFY_URL"] is None
@@ -358,14 +339,6 @@ if __name__ == "__main__":
 
         # Loop all frames
         for video_frame, PERSON_DETECTED in processed_frames:
-            # Send email
-            if ARGS["SEND_EMAIL"]:
-                if email_sent and email_future is not None:
-                    if email_future.done():
-                        app.utils.logger.pprint("Email sent")
-                        email_sent = False
-                        email_future = None
-
             if (
                 PERSON_DETECTED
                 and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]
@@ -388,13 +361,6 @@ if __name__ == "__main__":
                 else:
                     app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
 
-                if ARGS["SEND_EMAIL"]:
-                    email_future = executor.submit(
-                        app.integrations.email.send_email_report,
-                        SAVE_IMAGE,
-                    )
-                    email_sent = True
-
                 if ARGS["SEND_NTFY"]:
                     try:
                         app.integrations.ntfy.send_ntfy(
@@ -410,9 +376,6 @@ if __name__ == "__main__":
                         app.utils.logger.eprint("Failed to send ntfy")
 
                 start_timeout = time.time()
-
-    # Release and close threading
-    executor.shutdown(wait=True)
 
     # Stop reader
     STOP_EVENT.set()

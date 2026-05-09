@@ -21,7 +21,6 @@ services:
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration.json",
         "--save",
-        "--email",
         "--ntfy",
         "--web", "camera"
       ]
