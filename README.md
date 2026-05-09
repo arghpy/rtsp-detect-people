@@ -10,11 +10,6 @@ Use the docker image to run the program, without the need to install the librari
 
 An example configuration file [can be found here](config.json).
 
-For people who would like to send an email via Gmail, the following is required:
-- create an [App Password](https://myaccount.google.com/apppasswords) (in my tests, leaving the spaces in between worked also)
-- server: "smpt.gmail.com"
-- port: 465
-
 ## Running
 
 ```bash
@@ -24,7 +19,7 @@ docker compose up -d
 The program by itself contains the following options:
 
 ```bash
-python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] [-e/--email] [-w/--web PORT]
+python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] [-w/--web PORT]
 
 DESCRIPTION
        Detect people from RTSP stream.
@@ -40,9 +35,6 @@ OPTIONS
 -s/--save,
        save live footage
 
--e/--email,
-       send email
-
 -w/--web PATH,
        Start web server on path
 ```
@@ -52,7 +44,6 @@ Options:
 - **-c/--config FILE**: mandatory
 - **-s/--save**: save captured video with the name and path specified in the configuration file,
 in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-second.mkv*
-- **-e/--email**: send email
 
 ## Viewing
 
@@ -85,7 +76,6 @@ services:
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration-camera1.json",
         "--save",
-        "--email",
         "--ntfy",
         "--web", "camera1"
       ]
@@ -110,7 +100,6 @@ services:
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration-camera2.json",
         "--save",
-        "--email",
         "--ntfy",
         "--web", "camera2"
       ]
@@ -127,5 +116,5 @@ services:
 
 In case the connection to the camera is lost, it will try to reconnect indefinitely.
 
-The timeout set in the configuration file represents the timeout in seconds between emails sent,
+The timeout set in the configuration file represents the timeout in seconds between notifications sent,
 in case there is a person detected continuously for a long period of time.

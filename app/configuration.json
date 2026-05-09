@@ -20,14 +20,6 @@
     "url": "<url>",
     "tag": "<tag>"
   },
-  "email": {
-    "user": "<USER_EMAIL>",
-    "password": "<PASSWORD>",
-    "server": "<SERVER>",
-    "port": "<PORT>",
-    "subject": "<SUBJECT>",
-    "recipients": ["<EMAIL_1>", "<EMAIL_2>"]
-  },
   "home-assistant": {
     "base_http_url": "<url>",
     "token": "<token>",
