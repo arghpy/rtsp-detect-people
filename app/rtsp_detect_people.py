@@ -26,11 +26,12 @@ import app.yolo.detection
 # Args
 ARGS = {}
 ARGS["CONFIGURATION_FILE"] = None
-ARGS["ENABLE_WEB"] = False
+ARGS["CAMERA"] = False
 ARGS["HA_TRIGGER"] = False
 ARGS["SAVE_VIDEO"] = False
 ARGS["SEND_NTFY"] = False
-ARGS["STREAM_PATH"] = None
+ARGS["CAMERA_PATH"] = None
+cap = None
 
 
 # pylint: disable=unused-argument
@@ -41,17 +42,14 @@ def handle_signals(signum, exec_frame):
     signame = signal.Signals(signum).name
     app.utils.logger.pprint(f"Received {signame}({signum})")
 
-    # Release and close threading
-    executor.shutdown(wait=True)
-
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
 
     # Stop MediaMTX
-    if ARGS["ENABLE_WEB"]:
-        MEDIAMTX_WRITER.stdin.close()
-        MEDIAMTX_WRITER.wait()
+    MEDIAMTX_WRITER.stdin.close()
+    MEDIAMTX_WRITER.wait()
+    cap.release()
 
     # Stop writer
     if ARGS["SAVE_VIDEO"]:
@@ -82,10 +80,10 @@ def parse_arguments(argv):
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
             ARGS["CONFIGURATION_FILE"] = passed_args[0]
-        elif passed_args[0] == "-w" or passed_args[0] == "--web":
-            ARGS["ENABLE_WEB"] = True
+        elif passed_args[0] == "--camera":
+            ARGS["CAMERA"] = True
             passed_args.pop(0)
-            ARGS["STREAM_PATH"] = passed_args[0]
+            ARGS["CAMERA_PATH"] = passed_args[0]
         elif passed_args[0] == "--ha-trigger":
             ARGS["HA_TRIGGER"] = True
         else:
@@ -93,6 +91,12 @@ def parse_arguments(argv):
             app.utils.help.usage(argv)
             sys.exit(0)
         passed_args.pop(0)
+
+    if ARGS["CAMERA"] == False:
+        app.utils.logger.eprint("--camera option missing.")
+        app.utils.help.usage(argv)
+        sys.exit(1)
+
 
 
 if __name__ == "__main__":
@@ -163,24 +167,27 @@ if __name__ == "__main__":
         QUEUE_SIZE = 3 * MAX_BATCH_SIZE
 
     FRAME_QUEUE = queue.Queue(maxsize=int(QUEUE_SIZE))
+
+    # Open the stream
+    cap = cv2.VideoCapture(f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+    while not cap.isOpened():
+        app.utils.logger.eprint(f"Could not read from rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+        cap.open(f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+
     stream_reader_thread = threading.Thread(
-        target=app.utils.video.reader_frames_thread,
+        target=app.utils.video.collect_frames,
         args=(
+            cap,
             FRAME_QUEUE,
-            video_width,
-            video_height,
-            video_fps,
-            app.utils.config.CONFIG["RTSP_URL"],
             STOP_EVENT,
         ),
         daemon=True,
     )
     stream_reader_thread.start()
 
-    if ARGS["ENABLE_WEB"]:
-        MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-            video_width, video_height, video_fps, ARGS['STREAM_PATH']
-        )
+    MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
+        video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
+    )
 
     if ARGS["SAVE_VIDEO"]:
         output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
@@ -259,13 +266,13 @@ if __name__ == "__main__":
                 app.integrations.home_assistant.ha_trigger_boolean(False)
 
         # Send to MediaMTX
-        if ARGS["ENABLE_WEB"] and MEDIAMTX_WRITER is not None:
+        if MEDIAMTX_WRITER is not None:
             try:
                 # detect dead process
                 if MEDIAMTX_WRITER.poll() is not None:
                     app.utils.logger.eprint("MediaMTX writer died, restarting...")
                     MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-                        video_width, video_height, video_fps, ARGS['STREAM_PATH']
+                        video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
                     )
 
                 MEDIAMTX_WRITER.stdin.write(processed_frames_bytes)
@@ -278,7 +285,7 @@ if __name__ == "__main__":
                     pass
 
                 MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-                    video_width, video_height, video_fps, ARGS['STREAM_PATH']
+                    video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
                 )
 
         # Save video
@@ -382,9 +389,9 @@ if __name__ == "__main__":
     stream_reader_thread.join(timeout=2)
 
     # Stop MediaMTX
-    if ARGS["ENABLE_WEB"]:
-        MEDIAMTX_WRITER.stdin.close()
-        MEDIAMTX_WRITER.wait()
+    MEDIAMTX_WRITER.stdin.close()
+    MEDIAMTX_WRITER.wait()
+    cap.release()
 
     # Stop writer
     if ARGS["SAVE_VIDEO"]:
