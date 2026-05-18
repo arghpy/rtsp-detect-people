@@ -1,9 +1,12 @@
 # pylint: disable=import-error
 import cv2
-from ultralytics import YOLO
+from ultralytics import YOLO, settings
 
 import app.utils.config
 import app.utils.logger
+
+# Disable analytics and crash reporting
+settings.update({"sync": False})
 
 CUDA_ENABLED = False
 model = None
