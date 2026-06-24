@@ -5,7 +5,7 @@ import time
 import cv2
 import numpy as np
 import app.utils.logger
-import app.yolo.detection
+import app.yolo.cuda
 
 
 def collect_frames(cap, frame_queue, STOP_EVENT):
@@ -36,7 +36,7 @@ def mediamtx_stream(width, height, fps, path="live") -> subprocess.Popen:
         "-i", "-",
         "-an",
     ]
-    if app.yolo.detection.CUDA_ENABLED:
+    if app.yolo.cuda.CUDA_ENABLED:
         stream_cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhq"])
     else:
         stream_cmd.extend([
@@ -79,7 +79,7 @@ def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
         "-",
         "-an",  # no audio
     ]
-    if app.yolo.detection.CUDA_ENABLED:
+    if app.yolo.cuda.CUDA_ENABLED:
         writer_cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
     else:
         writer_cmd.extend(["-c:v", "libx264", "-preset", "veryfast"])
