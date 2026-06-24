@@ -30,6 +30,7 @@ ARGS["CAMERA"] = False
 ARGS["HA_TRIGGER"] = False
 ARGS["SAVE_VIDEO"] = False
 ARGS["SEND_NTFY"] = False
+ARGS["DETECTION"] = False
 ARGS["CAMERA_PATH"] = None
 cap = None
 
@@ -77,6 +78,8 @@ def parse_arguments(argv):
             ARGS["SAVE_VIDEO"] = True
         elif passed_args[0] == "-n" or passed_args[0] == "--ntfy":
             ARGS["SEND_NTFY"] = True
+        elif passed_args[0] == "-d" or passed_args[0] == "--detection":
+            ARGS["DETECTION"] = True
         elif passed_args[0] == "-c" or passed_args[0] == "--config":
             passed_args.pop(0)
             ARGS["CONFIGURATION_FILE"] = passed_args[0]
@@ -143,11 +146,13 @@ if __name__ == "__main__":
     ):
         ARGS["HA_TRIGGER"] = False
 
-    app.yolo.detection.load_model()
-
-    PERSON_DETECTED = False
-    OCCUPANCY_DETECTED = False
-    HA_TOGGLE = False
+    if ARGS["DETECTION"]:
+        app.yolo.detection.load_model()
+        PERSON_DETECTED = False
+        OCCUPANCY_DETECTED = False
+        OCCUPANCY_DETECTED_TIMEOUT = 10  # secs
+        OCCUPANCY_LAST_SEEN = 0  # timestamp of last detection
+        HA_TOGGLE = False
 
     # Frame and properties
     video_width, video_height, video_fps = app.utils.video.probe_stream(
@@ -160,6 +165,7 @@ if __name__ == "__main__":
         except KeyError:
             pass
 
+    # if it doesn't exist in config, default value will be used
     MAX_BATCH_SIZE = app.utils.config.CONFIG["YOLO_BATCH"]
 
     QUEUE_SIZE = video_fps
@@ -218,9 +224,6 @@ if __name__ == "__main__":
             output_video, video_width, video_height, video_fps
         )
 
-    OCCUPANCY_DETECTED_TIMEOUT = 10  # secs
-    OCCUPANCY_LAST_SEEN = 0  # timestamp of last detection
-
     # MAIN LOOP
     while True:
         frames = []
@@ -246,24 +249,26 @@ if __name__ == "__main__":
         if len(frames) == 0:
             continue
 
-        processed_frames = app.yolo.detection.process_frames(frames)
-        processed_frames_bytes = b"".join(f.tobytes() for f, _ in processed_frames)
+        if ARGS["DETECTION"]:
+            processed_frames = app.yolo.detection.process_frames(frames)
+            processed_frames_bytes = b"".join(f.tobytes() for f, _ in processed_frames)
+            OCCUPANCY_DETECTED = any(detection for _, detection in processed_frames)
 
-        # Check if any detection is true
-        OCCUPANCY_DETECTED = any(detection for _, detection in processed_frames)
+            # Update last seen if detected
+            if OCCUPANCY_DETECTED:
+                OCCUPANCY_LAST_SEEN = time.time()
+                if ARGS["HA_TRIGGER"] and not HA_TOGGLE:
+                    HA_TOGGLE = True
+                    app.integrations.home_assistant.ha_trigger_boolean(True)
 
-        # Update last seen if detected
-        if OCCUPANCY_DETECTED:
-            OCCUPANCY_LAST_SEEN = time.time()
-            if ARGS["HA_TRIGGER"] and not HA_TOGGLE:
-                HA_TOGGLE = True
-                app.integrations.home_assistant.ha_trigger_boolean(True)
-
-        # If timeout has passed since last detection, turn off
-        if ARGS["HA_TRIGGER"] and HA_TOGGLE:
-            if time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT:
-                HA_TOGGLE = False
-                app.integrations.home_assistant.ha_trigger_boolean(False)
+            # If timeout has passed since last detection, turn off
+            if ARGS["HA_TRIGGER"] and HA_TOGGLE:
+                if time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT:
+                    HA_TOGGLE = False
+                    app.integrations.home_assistant.ha_trigger_boolean(False)
+        else:
+            processed_frames = frames
+            processed_frames_bytes = b"".join(f.tobytes() for f in processed_frames)
 
         # Send to MediaMTX
         if MEDIAMTX_WRITER is not None:
@@ -344,45 +349,46 @@ if __name__ == "__main__":
                     output_video, video_width, video_height, video_fps
                 )
 
-        # Loop all frames
-        for video_frame, PERSON_DETECTED in processed_frames:
-            if (
-                PERSON_DETECTED
-                and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]
-            ):
-                now = datetime.now()
-                minute = now.minute
-                second = now.second
+        if ARGS["DETECTION"]:
+            # Loop all frames
+            for video_frame, PERSON_DETECTED in processed_frames:
+                if (
+                    PERSON_DETECTED
+                    and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]
+                ):
+                    now = datetime.now()
+                    minute = now.minute
+                    second = now.second
 
-                SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-                SAVE_IMAGE_NAME = (
-                    f"{app.utils.config.CONFIG['VIDEO_NAME']}"
-                    f"_{minute}"
-                    f":{second}"
-                    f".jpeg"
-                )
-                SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
-                rc = cv2.imwrite(SAVE_IMAGE, video_frame)
-                if rc:
-                    app.utils.logger.pprint(f"Saved image to {SAVE_IMAGE}")
-                else:
-                    app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
+                    SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+                    SAVE_IMAGE_NAME = (
+                        f"{app.utils.config.CONFIG['VIDEO_NAME']}"
+                        f"_{minute}"
+                        f":{second}"
+                        f".jpeg"
+                    )
+                    SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
+                    rc = cv2.imwrite(SAVE_IMAGE, video_frame)
+                    if rc:
+                        app.utils.logger.pprint(f"Saved image to {SAVE_IMAGE}")
+                    else:
+                        app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
 
-                if ARGS["SEND_NTFY"]:
-                    try:
-                        app.integrations.ntfy.send_ntfy(
-                            app.utils.config.CONFIG["NTFY_URL"],
-                            app.utils.config.CONFIG["NTFY_TAG"],
-                            "Person detected",
-                            "",
-                            SAVE_IMAGE,
-                            "detection.jpeg",
-                        )
-                        app.utils.logger.pprint("Successfully sent ntfy")
-                    except requests.exceptions.HTTPError:
-                        app.utils.logger.eprint("Failed to send ntfy")
+                    if ARGS["SEND_NTFY"]:
+                        try:
+                            app.integrations.ntfy.send_ntfy(
+                                app.utils.config.CONFIG["NTFY_URL"],
+                                app.utils.config.CONFIG["NTFY_TAG"],
+                                "Person detected",
+                                "",
+                                SAVE_IMAGE,
+                                "detection.jpeg",
+                            )
+                            app.utils.logger.pprint("Successfully sent ntfy")
+                        except requests.exceptions.HTTPError:
+                            app.utils.logger.eprint("Failed to send ntfy")
 
-                start_timeout = time.time()
+                    start_timeout = time.time()
 
     # Stop reader
     STOP_EVENT.set()
