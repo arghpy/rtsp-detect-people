@@ -26,17 +26,26 @@ DESCRIPTION
 
 OPTIONS
 
--c/--config FILE,
-       specify configuration file
-
 -h/--help,
-       print this help message
+        print this help message
 
 -s/--save,
-       save live footage
+        save live footage
+
+-n/--ntfy,
+        send notification through ntfy
+
+-d/--detection,
+        detect people on stream
+
+-c/--config FILE,
+        specify configuration file
 
 --camera CAMERA,
-       Camera configured in mediaMTX
+        Camera configured in mediaMTX
+
+--ha-trigger,
+        Home Assistant: trigger while person detected
 ```
 
 Options:
@@ -77,6 +86,7 @@ services:
         "--config", "configuration-camera1.json",
         "--save",
         "--ntfy",
+        "--detection",
         "--camera", "front"
       ]
     deploy:
@@ -101,6 +111,7 @@ services:
         "--config", "configuration-camera2.json",
         "--save",
         "--ntfy",
+        "--detection",
         "--camera", "back"
       ]
     deploy:
