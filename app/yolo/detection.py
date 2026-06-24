@@ -4,23 +4,23 @@ from ultralytics import settings
 
 import app.utils.config
 import app.utils.logger
+import app.yolo.cuda
 
 # Disable analytics and crash reporting
 settings.update({"sync": False})
 
 from ultralytics import YOLO
 
-CUDA_ENABLED = False
 model = None
 
 
 def load_model():
-    global model, CUDA_ENABLED
+    global model
 
     model = YOLO(app.utils.config.CONFIG["YOLO_MODEL"])
     try:
         model.to("cuda")  # Enable GPU
-        CUDA_ENABLED = True
+        app.yolo.cuda.CUDA_ENABLED = True
         app.utils.logger.pprint("CUDA found. Running on GPU")
     except Exception as e:
         app.utils.logger.eprint(f"[ERROR] Failed to initialize YOLO model with nvidia: {e}")
