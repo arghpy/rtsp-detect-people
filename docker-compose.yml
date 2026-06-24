@@ -22,5 +22,6 @@ services:
         "--config", "configuration.json",
         "--save",
         "--ntfy",
+        "--detection",
         "--camera", "front"
       ]
