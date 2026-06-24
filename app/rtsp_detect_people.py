@@ -15,13 +15,10 @@ from datetime import datetime
 import cv2
 import requests
 
-import app.integrations.home_assistant
-import app.integrations.ntfy
 import app.utils.config
 import app.utils.help
 import app.utils.logger
 import app.utils.video
-import app.yolo.detection
 
 # Args
 ARGS = {}
@@ -139,14 +136,19 @@ if __name__ == "__main__":
         or app.utils.config.CONFIG["NTFY_TAG"] is None
     ):
         ARGS["SEND_NTFY"] = False
+    else:
+        import app.integrations.ntfy
 
     if (
         app.utils.config.CONFIG["HA_ENTITY_ID"] is None
         or app.utils.config.CONFIG["HA_ENTITY_TYPE"] is None
     ):
         ARGS["HA_TRIGGER"] = False
+    else:
+        import app.integrations.home_assistant
 
     if ARGS["DETECTION"]:
+        import app.yolo.detection
         app.yolo.detection.load_model()
         PERSON_DETECTED = False
         OCCUPANCY_DETECTED = False
