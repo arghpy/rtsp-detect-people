@@ -216,7 +216,7 @@ if __name__ == "__main__":
                     minute = now.minute
                     second = now.second
 
-                    SAVE_IMAGE_PATH = f"captures"
+                    SAVE_IMAGE_PATH = f"/recordings/{ARGS['CAMERA_PATH']}/captures"
                     SAVE_IMAGE_NAME = (
                         f"{ARGS['CAMERA_PATH']}"
                         f"_{minute}"
