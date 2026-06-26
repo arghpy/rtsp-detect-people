@@ -213,13 +213,19 @@ if __name__ == "__main__":
                     and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]
                 ):
                     now = datetime.now()
+                    month = now.month
+                    day = now.day
+                    hour = now.hour
                     minute = now.minute
                     second = now.second
 
                     SAVE_IMAGE_PATH = f"/recordings/{ARGS['CAMERA_PATH']}/captures"
                     SAVE_IMAGE_NAME = (
                         f"{ARGS['CAMERA_PATH']}"
-                        f"_{minute}"
+                        f"_{month}"
+                        f"-{day}"
+                        f"_{hour}"
+                        f":{minute}"
                         f":{second}"
                         f".jpeg"
                     )
