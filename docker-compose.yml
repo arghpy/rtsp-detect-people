@@ -16,6 +16,7 @@ services:
     user: 1000:1000
     restart: unless-stopped
     volumes:
+      - /folder:/recordings
       - ./:/usr/src/app
     working_dir: /usr/src/app
     command:
