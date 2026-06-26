@@ -8,7 +8,7 @@ pathDefaults:
     rtspTransport: tcp
     sourceOnDemand: no
     runOnReadyRestart: yes
-    runOnInit: mkdir -p "/recordings/$MTX_PATH"
+    runOnInit: mkdir -p "/recordings/$MTX_PATH/captures"
     runOnReady: >
       ffmpeg
       -loglevel warning
