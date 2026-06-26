@@ -25,7 +25,6 @@ ARGS = {}
 ARGS["CONFIGURATION_FILE"] = None
 ARGS["CAMERA"] = False
 ARGS["HA_TRIGGER"] = False
-ARGS["SAVE_VIDEO"] = False
 ARGS["SEND_NTFY"] = False
 ARGS["DETECTION"] = False
 ARGS["CAMERA_PATH"] = None
@@ -43,17 +42,7 @@ def handle_signals(signum, exec_frame):
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
-
-    # Stop MediaMTX
-    MEDIAMTX_WRITER.stdin.close()
-    MEDIAMTX_WRITER.wait()
     cap.release()
-
-    # Stop writer
-    if ARGS["SAVE_VIDEO"]:
-        OUT_VIDEO_WRITER.stdin.close()
-        OUT_VIDEO_WRITER.wait()
-
     sys.exit(0)
 
 
@@ -71,8 +60,6 @@ def parse_arguments(argv):
         if passed_args[0] == "-h" or passed_args[0] == "--help":
             app.utils.help.usage(argv)
             sys.exit(0)
-        elif passed_args[0] == "-s" or passed_args[0] == "--save":
-            ARGS["SAVE_VIDEO"] = True
         elif passed_args[0] == "-n" or passed_args[0] == "--ntfy":
             ARGS["SEND_NTFY"] = True
         elif passed_args[0] == "-d" or passed_args[0] == "--detection":
@@ -102,17 +89,6 @@ def parse_arguments(argv):
 if __name__ == "__main__":
     parse_arguments(sys.argv)
 
-    # Set up used variables
-    now = datetime.now()
-
-    year = now.year
-    month = now.month
-    day = now.day
-    hour = now.hour
-    minute = now.minute
-    second = now.second
-
-    OUT_VIDEO_WRITER = None
     # pylint: disable=invalid-name
     start_timeout = 0
     STOP_EVENT = threading.Event()
@@ -123,13 +99,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     app.utils.config.process_configuration(ARGS["CONFIGURATION_FILE"])
-
-    if (
-        app.utils.config.CONFIG["VIDEO_NAME"] is None
-        or app.utils.config.CONFIG["VIDEO_PATH"] is None
-        or app.utils.config.CONFIG["VIDEO_FPS"] is None
-    ):
-        ARGS["SAVE_VIDEO"] = False
 
     if (
         app.utils.config.CONFIG["NTFY_URL"] is None
@@ -161,11 +130,7 @@ if __name__ == "__main__":
         app.utils.config.CONFIG["RTSP_URL"]
     )
     if video_fps < 10 or video_fps > 50:
-        try:
-            video_fps = app.utils.config.CONFIG["VIDEO_FPS"]
-            app.utils.logger.pprint(f"FPS was overridden by the config to {video_fps}")
-        except KeyError:
-            pass
+        video_fps = 20
 
     # if it doesn't exist in config, default value will be used
     MAX_BATCH_SIZE = app.utils.config.CONFIG["YOLO_BATCH"]
@@ -193,39 +158,6 @@ if __name__ == "__main__":
     )
     stream_reader_thread.start()
 
-    MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-        video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
-    )
-
-    if ARGS["SAVE_VIDEO"]:
-        output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
-        output_video_path = (
-            f"{output_video_path}" f"/{year}" f"/{month}" f"/{day}" f"/{hour}"
-        )
-        output_video_format = "mkv"
-        output_video_name = (
-            f"{app.utils.config.CONFIG['VIDEO_NAME']}_{year}"
-            f"-{month}"
-            f"-{day}"
-            f"_{hour}"
-            f"-{minute}"
-            f"-{second}"
-            f".{output_video_format}"
-        )
-
-        output_video = f"{output_video_path}/{output_video_name}"
-
-        SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-
-        try:
-            os.makedirs(SAVE_IMAGE_PATH)
-        except FileExistsError:
-            pass
-
-        OUT_VIDEO_WRITER = app.utils.video.writer_stream(
-            output_video, video_width, video_height, video_fps
-        )
-
     # MAIN LOOP
     while True:
         frames = []
@@ -251,7 +183,10 @@ if __name__ == "__main__":
         if len(frames) == 0:
             continue
 
-        if ARGS["DETECTION"]:
+        if not ARGS["DETECTION"]:
+            processed_frames = frames
+            processed_frames_bytes = b"".join(f.tobytes() for f in processed_frames)
+        else:
             processed_frames = app.yolo.detection.process_frames(frames)
             processed_frames_bytes = b"".join(f.tobytes() for f, _ in processed_frames)
             OCCUPANCY_DETECTED = any(detection for _, detection in processed_frames)
@@ -268,88 +203,7 @@ if __name__ == "__main__":
                 if time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT:
                     HA_TOGGLE = False
                     app.integrations.home_assistant.ha_trigger_boolean(False)
-        else:
-            processed_frames = frames
-            processed_frames_bytes = b"".join(f.tobytes() for f in processed_frames)
 
-        # Send to MediaMTX
-        if MEDIAMTX_WRITER is not None:
-            try:
-                # detect dead process
-                if MEDIAMTX_WRITER.poll() is not None:
-                    app.utils.logger.eprint("MediaMTX writer died, restarting...")
-                    MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-                        video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
-                    )
-
-                MEDIAMTX_WRITER.stdin.write(processed_frames_bytes)
-
-            except BrokenPipeError:
-                app.utils.logger.eprint("Broken pipe to MediaMTX, restarting writer...")
-                try:
-                    MEDIAMTX_WRITER.stdin.close()
-                except Exception:
-                    pass
-
-                MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-                    video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
-                )
-
-        # Save video
-        if ARGS["SAVE_VIDEO"] and OUT_VIDEO_WRITER is not None:
-            now = datetime.now()
-
-            # Change every hour
-            if now.hour != hour:
-                # Release before reconstructing
-                OUT_VIDEO_WRITER.stdin.close()
-                OUT_VIDEO_WRITER.wait()
-
-                year = now.year
-                month = now.month
-                day = now.day
-                hour = now.hour
-                minute = now.minute
-                second = now.second
-
-                output_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
-                output_video_path = (
-                    f"{output_video_path}"
-                    f"/{year}"
-                    f"/{month}"
-                    f"/{day}"
-                    f"/{hour}"
-                )
-
-                output_video_name = (
-                    f"{app.utils.config.CONFIG['VIDEO_NAME']}_{year}"
-                    f"-{month}"
-                    f"-{day}"
-                    f"_{hour}"
-                    f"-{minute}"
-                    f"-{second}"
-                    f".{output_video_format}"
-                )
-
-                output_video = f"{output_video_path}/{output_video_name}"
-
-                SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-
-                try:
-                    os.makedirs(SAVE_IMAGE_PATH)
-                except FileExistsError:
-                    pass
-
-                OUT_VIDEO_WRITER = app.utils.video.writer_stream(
-                    output_video, video_width, video_height, video_fps
-                )
-            try:
-                OUT_VIDEO_WRITER.stdin.write(processed_frames_bytes)
-            except BrokenPipeError:
-                app.utils.logger.eprint("Video writer died, restarting...")
-                OUT_VIDEO_WRITER = app.utils.video.writer_stream(
-                    output_video, video_width, video_height, video_fps
-                )
 
         if ARGS["DETECTION"]:
             # Loop all frames
@@ -362,9 +216,9 @@ if __name__ == "__main__":
                     minute = now.minute
                     second = now.second
 
-                    SAVE_IMAGE_PATH = f"{output_video_path}/captures"
+                    SAVE_IMAGE_PATH = f"captures"
                     SAVE_IMAGE_NAME = (
-                        f"{app.utils.config.CONFIG['VIDEO_NAME']}"
+                        f"{ARGS['CAMERA_PATH']}"
                         f"_{minute}"
                         f":{second}"
                         f".jpeg"
@@ -395,13 +249,4 @@ if __name__ == "__main__":
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
-
-    # Stop MediaMTX
-    MEDIAMTX_WRITER.stdin.close()
-    MEDIAMTX_WRITER.wait()
     cap.release()
-
-    # Stop writer
-    if ARGS["SAVE_VIDEO"]:
-        OUT_VIDEO_WRITER.stdin.close()
-        OUT_VIDEO_WRITER.wait()

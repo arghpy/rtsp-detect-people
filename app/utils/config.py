@@ -17,10 +17,6 @@ CONFIG["NTFY_TAG"] = None
 CONFIG["NTFY_URL"] = None
 CONFIG["RTSP_FEED"] = None
 CONFIG["RTSP_URL"] = None
-CONFIG["VIDEO_FPS"] = None
-CONFIG["VIDEO_FPS"] = None
-CONFIG["VIDEO_NAME"] = None
-CONFIG["VIDEO_PATH"] = None
 
 
 def process_configuration(config_file):
@@ -52,13 +48,6 @@ def process_configuration(config_file):
         CONFIG["YOLO_IMGSZ"] = int(configuration["yolo"]["imgsz"])
     except KeyError:
         app.utils.logger.eprint("[CONFIG] Default values will be used")
-
-    try:
-        CONFIG["VIDEO_NAME"] = configuration["rtsp"]["save_video"]["name"]
-        CONFIG["VIDEO_PATH"] = configuration["rtsp"]["save_video"]["path"]
-        CONFIG["VIDEO_FPS"] = int(configuration["rtsp"]["save_video"]["optional_force_fps"])
-    except KeyError:
-        app.utils.logger.eprint("[CONFIG] Video won't pe saved")
 
     try:
         # NTFY
