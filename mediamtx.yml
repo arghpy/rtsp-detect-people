@@ -7,6 +7,20 @@ webrtcAdditionalHosts:
 pathDefaults:
     rtspTransport: tcp
     sourceOnDemand: no
+    runOnReadyRestart: yes
+    runOnInit: mkdir -p "/recordings/$MTX_PATH"
+    runOnReady: >
+      ffmpeg
+      -loglevel warning
+      -fflags +genpts+discardcorrupt
+      -rtsp_transport tcp
+      -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
+      -c:v copy -c:a aac
+      -f segment
+      -segment_time 3600
+      -segment_atclocktime 1
+      -strftime 1
+      /recordings/$MTX_PATH/%d-%m_%H:%M.mp4
 
 paths:
   camera-live: # Processed video is here

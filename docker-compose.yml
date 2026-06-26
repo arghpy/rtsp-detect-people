@@ -9,6 +9,8 @@ services:
       - 8189:8189/udp
     volumes:
       - ./mediamtx.yml:/mediamtx.yml
+      - /folder:/recordings
+      - /etc/localtime:/etc/localtime
   rtsp_detect:
     build: .
     user: 1000:1000
@@ -20,7 +22,6 @@ services:
       [
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration.json",
-        "--save",
         "--ntfy",
         "--detection",
         "--camera", "front"
