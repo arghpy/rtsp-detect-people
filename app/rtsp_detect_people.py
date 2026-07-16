@@ -42,12 +42,7 @@ def handle_signals(signum, exec_frame):
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
-
-    # Stop MediaMTX
-    MEDIAMTX_WRITER.stdin.close()
-    MEDIAMTX_WRITER.wait()
     cap.release()
-
     sys.exit(0)
 
 
@@ -167,10 +162,6 @@ if __name__ == "__main__":
     )
     stream_reader_thread.start()
 
-    MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-        video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
-    )
-
     # MAIN LOOP
     while True:
         # Create directory structure
@@ -229,29 +220,6 @@ if __name__ == "__main__":
             processed_frames = frames
             processed_frames_bytes = b"".join(f.tobytes() for f in processed_frames)
 
-        # Send to MediaMTX
-        if MEDIAMTX_WRITER is not None:
-            try:
-                # detect dead process
-                if MEDIAMTX_WRITER.poll() is not None:
-                    app.utils.logger.eprint("MediaMTX writer died, restarting...")
-                    MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-                        video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
-                    )
-
-                MEDIAMTX_WRITER.stdin.write(processed_frames_bytes)
-
-            except BrokenPipeError:
-                app.utils.logger.eprint("Broken pipe to MediaMTX, restarting writer...")
-                try:
-                    MEDIAMTX_WRITER.stdin.close()
-                except Exception:
-                    pass
-
-                MEDIAMTX_WRITER = app.utils.video.mediamtx_stream(
-                    video_width, video_height, video_fps, f"{ARGS['CAMERA_PATH']}-live"
-                )
-
 
         if ARGS["DETECTION"]:
             # Loop all frames
@@ -296,8 +264,4 @@ if __name__ == "__main__":
     # Stop reader
     STOP_EVENT.set()
     stream_reader_thread.join(timeout=2)
-
-    # Stop MediaMTX
-    MEDIAMTX_WRITER.stdin.close()
-    MEDIAMTX_WRITER.wait()
     cap.release()
