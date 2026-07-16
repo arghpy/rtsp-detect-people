@@ -1,14 +1,33 @@
-logLevel: warn
+logLevel: error
+
+moq: no # For TLS warnings
 
 webrtcLocalUDPAddress: :8189
 webrtcAdditionalHosts:
   - <IP>   # your host machine's LAN IP
 
 pathDefaults:
-    rtspTransport: tcp
     sourceOnDemand: no
+    runOnInit: sh -c 'mkdir -p "$(date "+/recordings/%Y/%m/%d/%H/captures")"'
+    runOnReadyRestart: yes
+    runOnReady: >
+      ffmpeg
+      -loglevel warning
+      -fflags +genpts+discardcorrupt
+      -rtsp_transport tcp
+      -analyzeduration 10000000
+      -probesize 50000000
+      -i rtsp://localhost:$RTSP_PORT/$MTX_PATH
+      -c:v copy -c:a copy
+      -f segment
+      -segment_format matroska
+      -segment_time 3600
+      -segment_atclocktime 1
+      -reset_timestamps 1
+      -avoid_negative_ts make_zero
+      -strftime 1
+      "/recordings/%Y/%m/%d/%H/${MTX_PATH}_%M:%S.mkv"
 
 paths:
-  camera-live: # Processed video is here
   camera:
     source: rtsp://<USER>:<PASSWORD>@<CAMERA_IP>:554/<RTSP_FEED>
