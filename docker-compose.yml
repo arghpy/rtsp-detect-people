@@ -8,13 +8,17 @@ services:
       - 8889:8889   # WebRTC (browsers connect here)
       - 8189:8189/udp
     volumes:
+      - ./recordings:/recordings
       - ./mediamtx.yml:/mediamtx.yml
+      - /etc/localtime:/etc/localtime
   rtsp_detect:
     build: .
     user: 1000:1000
     restart: unless-stopped
     volumes:
+      - ./recordings:/recordings
       - ./:/usr/src/app
+      - /etc/localtime:/etc/localtime
     working_dir: /usr/src/app
     command:
       [
