@@ -20,7 +20,6 @@ def usage(argv):
     """Print program usage"""
     options = (
         ("-h/--help", "print this help message", False),
-        ("-s/--save", "save live footage", False),
         ("-n/--ntfy", "send notification through ntfy", False),
         ("-d/--detection", "detect people on stream", False),
         ("-c/--config FILE", "specify configuration file", True),

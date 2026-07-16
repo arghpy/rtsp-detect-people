@@ -19,7 +19,7 @@ docker compose up -d
 The program by itself contains the following options:
 
 ```bash
-python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] [-s/--save] --camera CAMERA
+python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] --camera CAMERA
 
 DESCRIPTION
        Detect people from RTSP stream.
@@ -28,9 +28,6 @@ OPTIONS
 
 -h/--help,
         print this help message
-
--s/--save,
-        save live footage
 
 -n/--ntfy,
         send notification through ntfy
@@ -51,8 +48,6 @@ OPTIONS
 Options:
 - **-h/--help**: print the help message
 - **-c/--config FILE**: mandatory
-- **-s/--save**: save captured video with the name and path specified in the configuration file,
-in the form *path/year/month/day/hour/video_name_year-month-day-hour-minute-second.mkv*
 
 ## Viewing
 
@@ -84,7 +79,6 @@ services:
       [
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration-camera1.json",
-        "--save",
         "--ntfy",
         "--detection",
         "--camera", "front"
@@ -109,7 +103,6 @@ services:
       [
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration-camera2.json",
-        "--save",
         "--ntfy",
         "--detection",
         "--camera", "back"

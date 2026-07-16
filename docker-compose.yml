@@ -24,7 +24,6 @@ services:
       [
         "python3", "-m", "app.rtsp_detect_people",
         "--config", "configuration.json",
-        "--save",
         "--ntfy",
         "--detection",
         "--camera", "front"
