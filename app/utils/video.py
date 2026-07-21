@@ -9,10 +9,19 @@ import app.yolo.cuda
 
 
 def collect_frames(cap, frame_queue, STOP_EVENT):
+    failed_frames = 0
     while not STOP_EVENT.is_set():
         ret, frame = cap.read()
+        if failed_frames > 20:
+            app.utils.logger.eprint("Restarting cap")
+            while not cap.isOpened():
+                app.utils.logger.eprint(f"Could not read from rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+                cap.open(f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+            failed_frames = 0
+
         if not ret:
             app.utils.logger.eprint("Could not read frame.")
+            failed_frames += 1
             time.sleep(1)
             continue
         else:
