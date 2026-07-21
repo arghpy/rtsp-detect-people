@@ -164,6 +164,9 @@ if __name__ == "__main__":
 
     # MAIN LOOP
     while True:
+        while not cap.isOpened():
+            app.utils.logger.eprint(f"Could not read from rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+            cap.open(f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
         # Create directory structure
         now = datetime.now()
 
