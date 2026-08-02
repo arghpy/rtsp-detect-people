@@ -24,24 +24,8 @@ ARGS["HA_TRIGGER"] = False
 ARGS["SEND_NTFY"] = False
 ARGS["DETECTION"] = False
 ARGS["CAMERA_PATH"] = None
-
-
-# pylint: disable=unused-argument
-def handle_signals(signum, exec_frame):
-    """Respond to different signals"""
-    global STOP_EVENT
-
-    signame = signal.Signals(signum).name
-    app.utils.logger.pprint(f"Received {signame}({signum})")
-
-    # Stop reader
-    STOP_EVENT.set()
-    stream_reader_thread.join(timeout=2)
-    sys.exit(0)
-
-
-signal.signal(signal.SIGTERM, handle_signals)
-signal.signal(signal.SIGINT, handle_signals)
+ARGS["WEBHOOK"] = False
+ARGS["WEBHOOK_PORT"] = None
 
 
 def parse_arguments(argv):
@@ -67,6 +51,10 @@ def parse_arguments(argv):
             ARGS["CAMERA_PATH"] = passed_args[0]
         elif passed_args[0] == "--ha-trigger":
             ARGS["HA_TRIGGER"] = True
+        elif passed_args[0] == "--webhook-port":
+            ARGS["WEBHOOK"] = True
+            passed_args.pop(0)
+            ARGS["WEBHOOK_PORT"] = int(passed_args[0])
         else:
             app.utils.logger.eprint(f"Invalid option: {passed_args[0]}")
             app.utils.help.usage(argv)
@@ -85,7 +73,6 @@ if __name__ == "__main__":
 
     # pylint: disable=invalid-name
     start_timeout = 0
-    STOP_EVENT = threading.Event()
 
     if ARGS["CONFIGURATION_FILE"] is None:
         app.utils.logger.eprint("Configuration not specified.")
@@ -106,43 +93,21 @@ if __name__ == "__main__":
     else:
         import app.integrations.home_assistant
 
-    if ARGS["DETECTION"]:
-        import app.yolo.detection
-        app.yolo.detection.load_model()
-        OCCUPANCY_DETECTED_TIMEOUT = 10  # secs
-        OCCUPANCY_LAST_SEEN = 0  # timestamp of last detection
-        HA_TOGGLE = False
+    if ARGS["DETECTION"] and ARGS["WEBHOOK"] and ARGS["WEBHOOK_PORT"] is not None:
+        import app.integrations.webhook
+        import app.integrations.reolink
+        from http.server import HTTPServer
 
+        webhook_reader_thread = threading.Thread(
+            target=lambda: HTTPServer(("0.0.0.0", ARGS["WEBHOOK_PORT"]), app.integrations.webhook.Handler).serve_forever(),
+            daemon=True
+        )
+        webhook_reader_thread.start()
 
-    # Frame and properties
-    mediamtx_rtsp_url = f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}"
-    video_width, video_height, video_fps = app.utils.video.probe_stream(mediamtx_rtsp_url)
-    if video_fps < 10 or video_fps > 50:
-        try:
-            video_fps = app.utils.config.CONFIG["VIDEO_FPS"]
-            app.utils.logger.pprint(f"FPS was overridden by the config to {video_fps}")
-        except KeyError:
-            pass
-
-    # if it doesn't exist in config, default value will be used
-    MAX_BATCH_SIZE = app.utils.config.CONFIG["YOLO_BATCH"]
-    QUEUE_SIZE = max(2, int(MAX_BATCH_SIZE * 1.5))
-    FRAME_QUEUE = queue.Queue(maxsize=int(QUEUE_SIZE))
-    batch_timeout = min(MAX_BATCH_SIZE/video_fps, 0.2)  # calculate the ideal time to wait for MAX_BATCH_SIZE frames
-
-    # Open the stream
-    cap = cv2.VideoCapture(mediamtx_rtsp_url)
-    while not cap.isOpened():
-        app.utils.logger.eprint(f"Could not read from {mediamtx_rtsp_url}")
-        cap.open(mediamtx_rtsp_url)
-
-    stream_reader_thread = threading.Thread(
-        target=app.utils.video.collect_frames,
-        args=(cap, mediamtx_rtsp_url, FRAME_QUEUE, STOP_EVENT),
-        daemon=True,
-    )
-    stream_reader_thread.start()
-
+        reolink_token, reolink_token_expiration = app.integrations.reolink.login(ARGS["CAMERA_PATH"], app.utils.config.CONFIG["RTSP_USER"], app.utils.config.CONFIG["RTSP_PASS"])
+        if not reolink_token:
+            app.utils.logger.eprint(f"Could not login to Reolink camera: {ARGS['CAMERA_PATH']}")
+            sys.exit(1)
 
     # Create directory structure
     now = datetime.now()
@@ -163,6 +128,9 @@ if __name__ == "__main__":
     os.makedirs(SAVE_IMAGE_PATH, exist_ok=True)
     os.makedirs(NEXT_SAVE_IMAGE_PATH, exist_ok=True)
 
+
+    # TODO: initialize token
+
     # MAIN LOOP
     while True:
         if datetime.now().hour == next_now.hour:
@@ -176,28 +144,18 @@ if __name__ == "__main__":
                 f"{next_now.strftime('/%Y/%m/%d/%H')}"
             )
 
+
             NEXT_SAVE_IMAGE_PATH = f"{next_output_video_path}/captures"
             os.makedirs(NEXT_SAVE_IMAGE_PATH, exist_ok=True)
 
+        if ARGS["DETECTION"] and ARGS["WEBHOOK"] and ARGS["WEBHOOK_PORT"] is not None:
+            if (reolink_token_expiration - time.time()) < 100:
+                reolink_token, reolink_token_expiration = app.integrations.reolink.login(ARGS["CAMERA_PATH"], app.utils.config.CONFIG["RTSP_USER"], app.utils.config.CONFIG["RTSP_PASS"])
+                if not reolink_token:
+                    app.utils.logger.eprint(f"Could not log in to Reolink camera: {ARGS['CAMERA_PATH']}")
+                    sys.exit(1)
 
-        # Possible busy loop?
-        frames = []
-        while len(frames) < MAX_BATCH_SIZE:
-            try:
-                frame = FRAME_QUEUE.get_nowait()
-                frames.append(frame)
-            except queue.Empty:
-                if len(frames) > 2:
-                    break
-                else:
-                    continue
-
-        if ARGS["DETECTION"] and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]:
-            processed_frames = app.yolo.detection.process_frames(frames)
-            if len(processed_frames) > 0:
-                start_timeout = time.time()
-                video_frame = processed_frames[-1]
-
+            if app.integrations.webhook.camera_alert():
                 # Update last seen if detected
                 OCCUPANCY_LAST_SEEN = time.time()
                 if ARGS["HA_TRIGGER"] and not HA_TOGGLE:
@@ -217,15 +175,19 @@ if __name__ == "__main__":
                 SAVE_IMAGE_NAME = (
                     f"{app.utils.config.CONFIG['VIDEO_NAME']}"
                     f"_{minute}"
-                    f":{second}"
+                    f"-{second}"
                     f".jpeg"
                 )
                 SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
-                rc = cv2.imwrite(SAVE_IMAGE, video_frame)
-                if rc:
-                    app.utils.logger.pprint(f"Saved image to {SAVE_IMAGE}")
+
+                img = app.integrations.reolink.get_snapshot(ARGS['CAMERA_PATH'], reolink_token)
+                if img is not None:
+                    compressed_img = app.integrations.ntfy.compress_for_ntfy(img)
+                    with open(SAVE_IMAGE, "wb") as f:
+                        f.write(compressed_img)
+                    app.utils.logger.pprint(f"Saved snapshot to {SAVE_IMAGE}")
                 else:
-                    app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
+                    app.utils.logger.eprint(f"Failed to save snapshot to {SAVE_IMAGE}")
 
                 if ARGS["SEND_NTFY"]:
                     try:
@@ -240,7 +202,3 @@ if __name__ == "__main__":
                         app.utils.logger.pprint("Successfully sent ntfy")
                     except requests.exceptions.HTTPError:
                         app.utils.logger.eprint("Failed to send ntfy")
-
-    # Stop reader
-    STOP_EVENT.set()
-    stream_reader_thread.join(timeout=2)
