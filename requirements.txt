@@ -1,4 +1,4 @@
-opencv-python
 certifi
 numpy
 requests
+ultralytics-opencv-headless

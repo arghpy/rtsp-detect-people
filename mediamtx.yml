@@ -9,8 +9,8 @@ webrtcAdditionalHosts:
 pathDefaults:
     sourceOnDemand: no
     runOnInit: sh -c 'mkdir -p "$(date "+/recordings/%Y/%m/%d/%H/captures")"'
-    runOnReadyRestart: yes
-    runOnReady: >
+    runOnAvailableRestart: yes
+    runOnAvailable: >
       ffmpeg
       -loglevel warning
       -fflags +genpts+discardcorrupt

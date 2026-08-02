@@ -23,8 +23,9 @@ def usage(argv):
         ("-n/--ntfy", "send notification through ntfy", False),
         ("-d/--detection", "detect people on stream", False),
         ("-c/--config FILE", "specify configuration file", True),
-        ("--camera CAMERA", "Camera configured in mediaMTX", False),
+        ("--camera CAMERA", "Camera configured in mediaMTX", True),
         ("--ha-trigger", "Home Assistant: trigger while person detected", False),
+        ("--webhook-port", "Port to receive push notifications from Reolink camera", False),
     )
 
     str_options = " ".join(

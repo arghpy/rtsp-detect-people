@@ -15,6 +15,8 @@ CONFIG["YOLO_BATCH"] = 8
 CONFIG["YOLO_IMGSZ"] = 640
 CONFIG["NTFY_TAG"] = None
 CONFIG["NTFY_URL"] = None
+CONFIG["RTSP_USER"] = None
+CONFIG["RTSP_PASS"] = None
 CONFIG["RTSP_FEED"] = None
 CONFIG["RTSP_URL"] = None
 CONFIG["VIDEO_FPS"] = None
@@ -30,12 +32,12 @@ def process_configuration(config_file):
 
     try:
         # RTSP
-        RTSP_USER = configuration["rtsp"]["user"]
-        RTSP_PASSWORD = configuration["rtsp"]["password"]
+        CONFIG["RTSP_USER"] = configuration["rtsp"]["user"]
+        CONFIG["RTSP_PASS"] = configuration["rtsp"]["password"]
         CONFIG["RTSP_FEED"] = configuration["rtsp"]["feed"]
-        CONFIG["RTSP_URL"] = f"rtsp://{RTSP_USER}:{RTSP_PASSWORD}@{CONFIG['RTSP_FEED']}"
+        CONFIG["RTSP_URL"] = f"rtsp://{CONFIG['RTSP_USER']}:{CONFIG['RTSP_PASS']}@{CONFIG['RTSP_FEED']}"
     except KeyError as e:
-        app.utils.logger.eprint(f"[CONFIG] Mandatory config option missing: {e}")
+        app.utils.logger.eprint(f"Mandatory config option missing: {e}")
         sys.exit(1)
 
     try:
@@ -43,7 +45,7 @@ def process_configuration(config_file):
         CONFIG["TIMEOUT"] = int(configuration.get("timeout"))  # Secs
         CONFIG["CONFIDENCE_MIN"] = float(configuration.get("confidence"))
     except KeyError:
-        app.utils.logger.eprint("[CONFIG] Default values will be used")
+        app.utils.logger.eprint("Default values will be used")
 
     try:
         # YOLO
@@ -51,21 +53,21 @@ def process_configuration(config_file):
         CONFIG["YOLO_BATCH"] = int(configuration["yolo"]["batch_size"])
         CONFIG["YOLO_IMGSZ"] = int(configuration["yolo"]["imgsz"])
     except KeyError:
-        app.utils.logger.eprint("[CONFIG] Default values will be used")
+        app.utils.logger.eprint("Default values will be used")
 
     try:
         CONFIG["VIDEO_NAME"] = configuration["rtsp"]["save_video"]["name"]
         CONFIG["VIDEO_PATH"] = configuration["rtsp"]["save_video"]["path"]
         CONFIG["VIDEO_FPS"] = int(configuration["rtsp"]["save_video"]["optional_force_fps"])
     except KeyError:
-        app.utils.logger.eprint("[CONFIG] Video won't pe saved")
+        app.utils.logger.eprint("Video won't pe saved")
 
     try:
         # NTFY
         CONFIG["NTFY_URL"] = configuration["ntfy"]["url"]
         CONFIG["NTFY_TAG"] = configuration["ntfy"]["tag"]
     except KeyError:
-        app.utils.logger.eprint("[CONFIG] ntfy won't be sent")
+        app.utils.logger.eprint("ntfy won't be sent")
 
     try:
         # Home Assistant
@@ -79,4 +81,4 @@ def process_configuration(config_file):
             "Content-Type": "application/json",
         }
     except KeyError:
-        app.utils.logger.eprint("[CONFIG] home assistant won't be notified")
+        app.utils.logger.eprint("home assistant won't be notified")

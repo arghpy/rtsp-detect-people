@@ -8,15 +8,15 @@ import app.utils.logger
 import app.yolo.cuda
 
 
-def collect_frames(cap, frame_queue, STOP_EVENT):
+def collect_frames(cap, rtsp_url, frame_queue, STOP_EVENT):
     failed_frames = 0
     while not STOP_EVENT.is_set():
         ret, frame = cap.read()
         if failed_frames > 20:
             app.utils.logger.eprint("Restarting cap")
             while not cap.isOpened():
-                app.utils.logger.eprint(f"Could not read from rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
-                cap.open(f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}")
+                app.utils.logger.eprint(f"Could not read from {rtsp_url}")
+                cap.open(rtsp_url)
             failed_frames = 0
 
         if not ret:
@@ -30,82 +30,6 @@ def collect_frames(cap, frame_queue, STOP_EVENT):
             except queue.Full:
                 # drop frame if queue full
                 pass
-
-
-def writer_stream(video_path, width, height, fps) -> subprocess.Popen:
-    """Write stream to file"""
-    app.utils.logger.pprint(f"Saving video to {video_path}")
-
-    writer_cmd = [
-        "ffmpeg",
-        "-loglevel",
-        "error",
-        "-y",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "bgr24",
-        "-s",
-        f"{width}x{height}",
-        "-r",
-        f"{fps}",
-        "-i",
-        "-",
-        "-an",  # no audio
-    ]
-    if app.yolo.cuda.CUDA_ENABLED:
-        writer_cmd.extend(["-c:v", "h264_nvenc", "-preset", "llhp"])
-    else:
-        writer_cmd.extend(["-c:v", "libx264", "-preset", "veryfast"])
-
-    writer_cmd.extend(
-        [
-            "-g",
-            f"{fps*2}",  # keyframe every 2 seconds
-            "-x264-params",
-            f"keyint={fps*2}:min-keyint={fps}",
-            "-pix_fmt",
-            "yuv420p",
-            "-f",
-            "matroska",
-            video_path,
-        ]
-    )
-    # pylint: disable=consider-using-with
-    writer = subprocess.Popen(writer_cmd, stdin=subprocess.PIPE)
-    return writer
-
-
-def read_exact(pipe, size):
-    buf = bytearray(size)
-    view = memoryview(buf)
-
-    n = 0
-    while n < size:
-        chunk = pipe.read(size - n)
-        if not chunk:
-            return None
-        view[n:n+len(chunk)] = chunk
-        n += len(chunk)
-
-    return buf
-
-
-def read_frame(pipe: subprocess.Popen, width, height) -> np.ndarray | None:
-    """Read frame from reader"""
-    size = width * height * 3
-
-    raw = read_exact(pipe, size)
-    if raw is None or len(raw) != size:
-        return None
-
-    frame = np.frombuffer(raw, np.uint8).reshape((height, width, 3))
-
-    # Ensure writable for OpenCV without always copying
-    if not frame.flags.writeable:
-        frame = np.array(frame, copy=True)  # copy only if necessary
-
-    return frame
 
 
 def probe_stream(rtsp_url) -> tuple[int, int, int]:
