@@ -175,7 +175,7 @@ if __name__ == "__main__":
                 SAVE_IMAGE_NAME = (
                     f"{app.utils.config.CONFIG['VIDEO_NAME']}"
                     f"_{minute}"
-                    f"-{second}"
+                    f":{second}"
                     f".jpeg"
                 )
                 SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
