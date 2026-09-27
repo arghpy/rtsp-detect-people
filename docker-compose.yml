@@ -1,6 +1,10 @@
 services:
   mediamtx:
+    # optional
+    dns:
+      - <IP>
     image: bluenviron/mediamtx:1-ffmpeg
+    container_name: mediamtx
     restart: unless-stopped
     user: 1000:1000
     ports:
@@ -8,23 +12,53 @@ services:
       - 8889:8889   # WebRTC (browsers connect here)
       - 8189:8189/udp
     volumes:
-      - ./recordings:/recordings
-      - ./mediamtx.yml:/mediamtx.yml
+      - /path/to/recordings:/recordings
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml
       - /etc/localtime:/etc/localtime
-  rtsp_detect:
-    build: .
+
+  ntfy:
+    image: binwiederhier/ntfy
+    container_name: ntfy
+    command:
+      - serve
+    environment:
+      - TZ=Europe/Bucharest
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+      - ./ntfy:/etc/ntfy
+      - /etc/localtime:/etc/localtime
+    ports:
+      - 5500:80
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --tries=1 http://<IP>:5500/v1/health -O - | grep -Eo '\"healthy\"\\s*:\\s*true' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    init: true # needed, if healthcheck is used. Prevents zombie processes
+
+
+  camera_front:
+    # optional
+    dns:
+      - <IP>
+    image: ultralytics/ultralytics:8.3.95-nvidia-cuda
+    container_name: camera_front
     user: 1000:1000
     restart: unless-stopped
     volumes:
-      - ./recordings:/recordings
+      - /path/to/recordings:/recordings
       - ./:/usr/src/app
       - /etc/localtime:/etc/localtime
     working_dir: /usr/src/app
     command:
       [
         "python3", "-m", "app.rtsp_detect_people",
-        "--config", "configuration.json",
-        "--ntfy",
-        "--detection",
-        "--camera", "front"
-      ]
+        "--config", "app/configuration_camera-front.json",
+        "--ntfy-tag", "camera-front",
+        "--camera", "camera-front",
+        ]
+
+volumes:
+  ntfy-cache:

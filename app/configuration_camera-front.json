@@ -6,26 +6,18 @@
     "batch_size": "<int>",
     "imgsz": "<int>"
   },
-  "rtsp": {
-    "feed": "<IP>",
-    "user": "<USER>",
-    "password": "<PASSWORD>",
-    "save_video": {
-      "path": "/path/to/saved/videos",
-      "name": "<video_name>",
-      "optional_force_fps": "<int>"
-    }
-  },
-  "ntfy": {
-    "url": "<url>",
-    "tag": "<tag>"
-  },
   "home-assistant": {
     "base_http_url": "<url>",
     "token": "<token>",
     "entity": {
       "type": "<type>",
       "id": "<id>"
+    }
+  },
+  "rtsp": {
+    "save_video": {
+      "path": "/path/to/recordings",
+      "name": "<video_name>"
     }
   }
 }

@@ -1,0 +1,25 @@
+logLevel: error
+
+moq: no # For TLS warnings
+playback: true
+
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts:
+  - <MACHINE_IP>   # your host machine's LAN IP
+
+pathDefaults:
+    sourceOnDemand: no
+    rtspTransport: tcp
+
+paths:
+  camera_web:
+    source: "rtsp://<user>:<pass>@camera:554/Preview_01_main"
+
+  camera-front:
+    source: "rtsp://<user>:<pass>@camera-front:554/Preview_01_sub"
+    record: yes
+    recordPath: /tmp/%path_%s_%f
+    recordFormat: fmp4
+    recordPartDuration: 1s
+    recordSegmentDuration: 1m
+    recordDeleteAfter: 3h

@@ -1,0 +1,7 @@
+[Unit]
+Description=Clean old surveillance files when disk usage is too high
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/clean_files.sh /path/to/recordings <disk_usage_percent>

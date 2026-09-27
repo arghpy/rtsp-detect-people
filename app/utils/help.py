@@ -19,13 +19,11 @@ def add_option(option, description):
 def usage(argv):
     """Print program usage"""
     options = (
-        ("-h/--help", "print this help message", False),
-        ("-n/--ntfy", "send notification through ntfy", False),
-        ("-d/--detection", "detect people on stream", False),
-        ("-c/--config FILE", "specify configuration file", True),
-        ("--camera CAMERA", "Camera configured in mediaMTX", True),
-        ("--ha-trigger", "Home Assistant: trigger while person detected", False),
-        ("--webhook-port", "Port to receive push notifications from Reolink camera", False),
+        ("--help",              "print this help message",                                False),
+        ("--ntfy-tag TAG",      "TAG to which to send notification through ntfy",         True),
+        ("--config FILE",       "configuration FILE to use",                              True),
+        ("--camera CAMERA",     "CAMERA configured as path in mediaMTX",                  True),
+        ("--ha-trigger",        "Home Assistant: trigger while person detected",          False),
     )
 
     str_options = " ".join(

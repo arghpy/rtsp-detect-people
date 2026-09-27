@@ -1,12 +1,13 @@
 import certifi
-import requests
-import app.utils.logger
 import cv2
 import numpy as np
+import requests
+import app.utils.logger
 
 
 def compress_for_ntfy(jpeg_bytes, quality=80):
     """
+    Authored by Claude.
     Re-compresses a JPEG at a lower quality to shrink file size,
     without changing its dimensions. Returns JPEG bytes, or the
     original bytes if something goes wrong.
@@ -21,12 +22,13 @@ def compress_for_ntfy(jpeg_bytes, quality=80):
 
 
 def send_ntfy(base_url, tag, title, body, attachment_path, attachment_name):
-    app.utils.logger.pprint("Person detected. Sending notification")
+    app.utils.logger.iprint("Person detected. Sending notification")
     url = f"{base_url}/{tag}"
     with open(attachment_path, "rb") as f:
         data = f.read()
     r = requests.post(
         url,
+        timeout=300,
         data=data,
         headers={
             "Filename": attachment_name,
