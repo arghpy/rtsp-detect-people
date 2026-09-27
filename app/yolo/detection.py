@@ -1,4 +1,3 @@
-# pylint: disable=import-error
 import cv2
 from ultralytics import settings
 
@@ -21,7 +20,7 @@ def load_model():
     try:
         model.to("cuda")  # Enable GPU
         app.yolo.cuda.CUDA_ENABLED = True
-        app.utils.logger.pprint("CUDA found. Running on GPU")
+        app.utils.logger.iprint("CUDA found. Running on GPU")
     except Exception as e:
         app.utils.logger.eprint(f"Failed to initialize YOLO model with nvidia: {e}")
         app.utils.logger.eprint("Continuing with cpu detection.")

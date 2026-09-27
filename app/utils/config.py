@@ -13,14 +13,6 @@ CONFIG["HA_URL"] = None
 CONFIG["YOLO_MODEL"] = "yolo11m.pt"
 CONFIG["YOLO_BATCH"] = 8
 CONFIG["YOLO_IMGSZ"] = 640
-CONFIG["NTFY_TAG"] = None
-CONFIG["NTFY_URL"] = None
-CONFIG["RTSP_USER"] = None
-CONFIG["RTSP_PASS"] = None
-CONFIG["RTSP_FEED"] = None
-CONFIG["RTSP_URL"] = None
-CONFIG["VIDEO_FPS"] = None
-CONFIG["VIDEO_FPS"] = None
 CONFIG["VIDEO_NAME"] = None
 CONFIG["VIDEO_PATH"] = None
 
@@ -30,47 +22,30 @@ def process_configuration(config_file):
 
     configuration = app.utils.files.load_json_file(config_file)
 
+    # General
     try:
-        # RTSP
-        CONFIG["RTSP_USER"] = configuration["rtsp"]["user"]
-        CONFIG["RTSP_PASS"] = configuration["rtsp"]["password"]
-        CONFIG["RTSP_FEED"] = configuration["rtsp"]["feed"]
-        CONFIG["RTSP_URL"] = f"rtsp://{CONFIG['RTSP_USER']}:{CONFIG['RTSP_PASS']}@{CONFIG['RTSP_FEED']}"
-    except KeyError as e:
-        app.utils.logger.eprint(f"Mandatory config option missing: {e}")
-        sys.exit(1)
-
-    try:
-        # General
         CONFIG["TIMEOUT"] = int(configuration.get("timeout"))  # Secs
         CONFIG["CONFIDENCE_MIN"] = float(configuration.get("confidence"))
     except KeyError:
         app.utils.logger.eprint("Default values will be used")
 
+    # YOLO
     try:
-        # YOLO
         CONFIG["YOLO_MODEL"] = configuration["yolo"]["model"]
         CONFIG["YOLO_BATCH"] = int(configuration["yolo"]["batch_size"])
         CONFIG["YOLO_IMGSZ"] = int(configuration["yolo"]["imgsz"])
     except KeyError:
         app.utils.logger.eprint("Default values will be used")
 
+    # RTSP
     try:
         CONFIG["VIDEO_NAME"] = configuration["rtsp"]["save_video"]["name"]
         CONFIG["VIDEO_PATH"] = configuration["rtsp"]["save_video"]["path"]
-        CONFIG["VIDEO_FPS"] = int(configuration["rtsp"]["save_video"]["optional_force_fps"])
     except KeyError:
         app.utils.logger.eprint("Video won't pe saved")
 
+    # Home Assistant
     try:
-        # NTFY
-        CONFIG["NTFY_URL"] = configuration["ntfy"]["url"]
-        CONFIG["NTFY_TAG"] = configuration["ntfy"]["tag"]
-    except KeyError:
-        app.utils.logger.eprint("ntfy won't be sent")
-
-    try:
-        # Home Assistant
         HA_TOKEN = configuration["home-assistant"]["token"]
         HA_URL = configuration["home-assistant"]["base_http_url"]
         CONFIG["HA_ENTITY_ID"] = configuration["home-assistant"]["entity"]["id"]

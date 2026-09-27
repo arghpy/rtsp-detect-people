@@ -20,6 +20,7 @@ def ha_trigger_boolean(request: bool):
             headers=app.utils.config.CONFIG["HA_HEADERS"],
             json=payload,
             verify=certifi.where(),
+            timeout=300,
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:

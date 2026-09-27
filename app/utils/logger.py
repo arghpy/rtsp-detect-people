@@ -7,6 +7,6 @@ def eprint(s):
     print(f"{datetime.now()}: [WARN] {s}", file=sys.stderr, flush=True)
 
 
-def pprint(s):
+def iprint(s):
     """Print to stdout with current time"""
     print(f"{datetime.now()}: [INFO] {s}", file=sys.stdout, flush=True)

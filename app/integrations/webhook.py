@@ -1,12 +1,12 @@
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-import threading
-import app.utils.logger
+from http.server import BaseHTTPRequestHandler
 import json
+import app.utils.logger
 
 
 alert = False
 payload = None
 
+# All of this authored by Claude
 class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         global alert, payload
@@ -26,7 +26,7 @@ class Handler(BaseHTTPRequestHandler):
 def camera_alert():
     global alert
     if alert:
-        app.utils.logger.pprint("Webhook received, person detected")
+        app.utils.logger.iprint("Webhook received, person detected")
         alert = False
         return True
     return False

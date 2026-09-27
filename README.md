@@ -1,124 +1,98 @@
 # rtsp-detect-people
 
-Detect people from an RTSP stream using YOLOv8n model.
+[![semantic-release: angular](https://img.shields.io/badge/semantic--release-angular-e10079?logo=semantic-release)](https://github.com/semantic-release/semantic-release)
+
+View live stream and save audio/video from camera using [MediaMTX](https://mediamtx.org/).
+Send a rich push notification via [ntfy](https://ntfy.sh/) with a snapshot when a person is detected by the Reolink camera.
 
 ## Requirements
 
-Use the docker image to run the program, without the need to install the libraries.
+Docker.
 
 ## Configuration
 
-An example configuration file [can be found here](config.json).
+### Services
+
+In order to not manually remove video files, the following services and script are provided:
+- [timer](services/clean_files.timer)
+- [service](services/clean_files.service)
+- [script](bin/clean_files.sh)
+
+You need to manually install them:
+
+```bash
+sudo cp services/clean_files* /etc/systemd/system/
+sudo cp bin/clean_files.sh /usr/local/bin/
+
+sudo systemctl enable clean_files.timer
+```
+
+The service will run every 15m.
+
+### Detection
+
+It is meant to store user/password for the camera and information about where to save the snapshots.
+An example configuration file [can be found here](app/configuration_camera-front.json).
+
+### MediaMTX
+
+An example configuration file [can be found here](mediamtx/mediamtx.yml).
+
+### ntfy
+
+An example configuration file [can be found here](ntfy/server.yml).
+These values were changed:
+
+```yaml
+base-url: <URL>
+attachment-cache-dir: "/var/cache/ntfy/attachments"
+attachment-total-size-limit: "5G"
+attachment-file-size-limit: "150M"
+attachment-expiry-duration: "24h"
+visitor-attachment-total-size-limit: "1G"
+visitor-attachment-daily-bandwidth-limit: "5G"
+```
 
 ## Running
 
 ```bash
+# Initially
+docker compose up -d --build
+
+# Afterwards
 docker compose up -d
 ```
 
 The program by itself contains the following options:
 
 ```bash
-python3 -m app.rtsp_detect_people -c/--config FILE [-h/--help] --camera CAMERA
+--help,
+	print this help message
 
-DESCRIPTION
-       Detect people from RTSP stream.
+--ntfy-tag TAG,
+	TAG to which to send notification through ntfy
 
-OPTIONS
-
--h/--help,
-        print this help message
-
--n/--ntfy,
-        send notification through ntfy
-
--d/--detection,
-        detect people on stream
-
--c/--config FILE,
-        specify configuration file
+--config FILE,
+	configuration FILE to use
 
 --camera CAMERA,
-        Camera configured in mediaMTX
+	CAMERA configured as path in MediaMTX configuration file
 
---ha-trigger,
-        Home Assistant: trigger while person detected
+--webhook-port PORT,
+	PORT to receive push notifications from Reolink camera
 ```
 
-Options:
-- **-h/--help**: print the help message
-- **-c/--config FILE**: mandatory
-
-## Viewing
+## Live stream
 
 The stream can be seen on **http://IP:8889/PATH**.
-It uses the capabilities of [MediaMTX](https://mediamtx.org/) for display the stream with the performant WebRTC.
+It uses the capabilities of [MediaMTX](https://mediamtx.org/) to display the stream with the performant WebRTC.
 
-## Notes
+## Notifications
 
-If you have a CUDA capable gpu, use this docker compose file:
-```yaml
-services:
-  mediamtx:
-    image: bluenviron/mediamtx:latest
-    restart: unless-stopped
-    ports:
-      - 8554:8554   # RTSP (ffmpeg pushes here)
-      - 8889:8889   # WebRTC (browsers connect here)
-      - 8189:8189/udp
-    volumes:
-      - ./mediamtx.yml:/mediamtx.yml
-  camera1:
-    build: .
-    user: 1000:1000
-    restart: unless-stopped
-    volumes:
-      - ./:/usr/src/app
-    working_dir: /usr/src/app
-    command:
-      [
-        "python3", "-m", "app.rtsp_detect_people",
-        "--config", "configuration-camera1.json",
-        "--ntfy",
-        "--detection",
-        "--camera", "front"
-      ]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
-  camera2:
-    build: .
-    user: 1000:1000
-    restart: unless-stopped
-    volumes:
-      - ./:/usr/src/app
-    working_dir: /usr/src/app
-    command:
-      [
-        "python3", "-m", "app.rtsp_detect_people",
-        "--config", "configuration-camera2.json",
-        "--ntfy",
-        "--detection",
-        "--camera", "back"
-      ]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    environment:
-      - NVIDIA_DRIVER_CAPABILITIES=compute,video,utility
-```
+Snapshots are saved in a docker volume inside ntfy container.
+After configuring the <URL> in its configuration file, they can be viewed at **<URL>/<TAG>** by subscribing.
 
-In case the connection to the camera is lost, it will try to reconnect indefinitely.
+## Saving audio/video
 
-The timeout set in the configuration file represents the timeout in seconds between notifications sent,
-in case there is a person detected continuously for a long period of time.
+This is done by mediamtx inside the container.
+Videos are saved in the format: **/path/to/recordings/%Y/%m/%d/%H/${MTX_PATH}_%M:%S.mkv**.

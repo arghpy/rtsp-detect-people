@@ -1,18 +1,15 @@
 import queue
-import subprocess
 import time
-import sys
 
 import cv2
-import numpy as np
 import app.utils.logger
 import app.yolo.cuda
 
 
-def collect_frames(cap, rtsp_url, frame_queue, STOP_EVENT):
+def collect_frames(cap, rtsp_url, frame_queue):
     failed_frames = 0
 
-    while not STOP_EVENT.is_set():
+    while True:
         ret, frame = cap.read()
         if not ret:
             failed_frames += 1
@@ -21,11 +18,11 @@ def collect_frames(cap, rtsp_url, frame_queue, STOP_EVENT):
             )
 
             if failed_frames >= 20:
-                app.utils.logger.pprint("Reconnecting to camera...")
+                app.utils.logger.iprint("Reconnecting to camera...")
                 cap.release()
                 cap = cv2.VideoCapture(rtsp_url)
                 if cap.isOpened():
-                    app.utils.logger.pprint("Camera reconnected")
+                    app.utils.logger.iprint("Camera reconnected")
                     failed_frames = 0
                 else:
                     app.utils.logger.eprint(
@@ -42,10 +39,10 @@ def collect_frames(cap, rtsp_url, frame_queue, STOP_EVENT):
             pass
 
 
-def probe_stream(rtsp_url) -> tuple[int, int, int]:
+def probe_stream(rtsp_url: str) -> int:
     """Probe the stream to get data"""
     while True:
-        app.utils.logger.pprint("Probing stream info")
+        app.utils.logger.iprint("Probing stream info")
         # Open stream once to get video properties
         cap = cv2.VideoCapture(rtsp_url)
 
@@ -62,5 +59,5 @@ def probe_stream(rtsp_url) -> tuple[int, int, int]:
         cap.release()
         break
 
-    app.utils.logger.pprint(f"Stream resolution: {width}x{height}, FPS: {fps}")
-    return width, height, fps
+    app.utils.logger.iprint(f"Stream resolution: {width}x{height}, FPS: {fps}")
+    return fps

@@ -4,67 +4,53 @@ import app.utils.config
 import app.utils.help
 import app.utils.logger
 import app.utils.video
+import app.integrations.ntfy
+import app.integrations.home_assistant
+import app.integrations.mediamtx
+import app.yolo.detection
 import cv2
 import os
 import queue
 import requests
-import signal
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 
 # Args
 ARGS = {}
-ARGS["CONFIGURATION_FILE"] = None
-ARGS["CAMERA"] = False
+ARGS["CAMERA"]= False
+ARGS["CAMERA_ARG"]= None
+ARGS["CONFIG"]= False
+ARGS["CONFIG_ARG"]= None
 ARGS["HA_TRIGGER"] = False
-ARGS["SEND_NTFY"] = False
-ARGS["DETECTION"] = False
-ARGS["CAMERA_PATH"] = None
-
-
-# pylint: disable=unused-argument
-def handle_signals(signum, exec_frame):
-    """Respond to different signals"""
-    global STOP_EVENT
-
-    signame = signal.Signals(signum).name
-    app.utils.logger.pprint(f"Received {signame}({signum})")
-
-    # Stop reader
-    STOP_EVENT.set()
-    stream_reader_thread.join(timeout=2)
-    sys.exit(0)
-
-
-signal.signal(signal.SIGTERM, handle_signals)
-signal.signal(signal.SIGINT, handle_signals)
+ARGS["NTFY_TAG"]= False
+ARGS["NTFY_TAG_ARG"]= None
 
 
 def parse_arguments(argv):
     """Parse command line arguments"""
     global ARGS
-
     passed_args = argv[1:]
 
     while len(passed_args) > 0:
-        if passed_args[0] == "-h" or passed_args[0] == "--help":
+        if passed_args[0] == "--help":
             app.utils.help.usage(argv)
             sys.exit(0)
-        elif passed_args[0] == "-n" or passed_args[0] == "--ntfy":
-            ARGS["SEND_NTFY"] = True
-        elif passed_args[0] == "-d" or passed_args[0] == "--detection":
-            ARGS["DETECTION"] = True
-        elif passed_args[0] == "-c" or passed_args[0] == "--config":
+        elif passed_args[0] == "--config":
+            ARGS["CONFIG"] = True
             passed_args.pop(0)
-            ARGS["CONFIGURATION_FILE"] = passed_args[0]
+            ARGS["CONFIG_ARG"] = str(passed_args[0])
+        elif passed_args[0] == "--ntfy-tag":
+            ARGS["NTFY_TAG"] = True
+            passed_args.pop(0)
+            ARGS["NTFY_TAG_ARG"] = str(passed_args[0])
         elif passed_args[0] == "--camera":
             ARGS["CAMERA"] = True
             passed_args.pop(0)
-            ARGS["CAMERA_PATH"] = passed_args[0]
+            ARGS["CAMERA_ARG"] = str(passed_args[0])
         elif passed_args[0] == "--ha-trigger":
             ARGS["HA_TRIGGER"] = True
         else:
@@ -73,56 +59,43 @@ def parse_arguments(argv):
             sys.exit(0)
         passed_args.pop(0)
 
-    if ARGS["CAMERA"] == False:
-        app.utils.logger.eprint("--camera option missing.")
-        app.utils.help.usage(argv)
+    if not ARGS["CONFIG"] or ARGS["CONFIG_ARG"] is None:
+        app.utils.logger.eprint("configuration not specified.")
+        app.utils.help.usage(sys.argv)
         sys.exit(1)
 
+    if not ARGS["NTFY_TAG"] or ARGS["NTFY_TAG_ARG"] is None:
+        app.utils.logger.eprint("ntfy tag not specified")
+        app.utils.help.usage(sys.argv)
+        sys.exit(1)
+
+    if not ARGS["CAMERA"] or ARGS["CAMERA_ARG"] is None:
+        app.utils.logger.eprint("camera not specified")
+        app.utils.help.usage(sys.argv)
+        sys.exit(1)
+
+    if not ARGS["HA_TRIGGER"]:
+        app.utils.logger.eprint("ha-trigger not specified")
+        app.utils.help.usage(sys.argv)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     parse_arguments(sys.argv)
+    app.utils.config.process_configuration(ARGS["CONFIG_ARG"])
 
     # pylint: disable=invalid-name
     start_timeout = 0
-    STOP_EVENT = threading.Event()
-
-    if ARGS["CONFIGURATION_FILE"] is None:
-        app.utils.logger.eprint("Configuration not specified.")
-        app.utils.help.usage(sys.argv)
-        sys.exit(1)
-
-    app.utils.config.process_configuration(ARGS["CONFIGURATION_FILE"])
-
-    if (app.utils.config.CONFIG["NTFY_URL"] is None
-        or app.utils.config.CONFIG["NTFY_TAG"] is None):
-        ARGS["SEND_NTFY"] = False
-    else:
-        import app.integrations.ntfy
-
-    if (app.utils.config.CONFIG["HA_ENTITY_ID"] is None
-        or app.utils.config.CONFIG["HA_ENTITY_TYPE"] is None):
-        ARGS["HA_TRIGGER"] = False
-    else:
-        import app.integrations.home_assistant
-
-    if ARGS["DETECTION"]:
-        import app.yolo.detection
-        app.yolo.detection.load_model()
-        OCCUPANCY_DETECTED_TIMEOUT = 10  # secs
-        OCCUPANCY_LAST_SEEN = 0  # timestamp of last detection
-        HA_TOGGLE = False
-
+    app.yolo.detection.load_model()
+    OCCUPANCY_DETECTED_TIMEOUT = 10  # secs
+    OCCUPANCY_LAST_SEEN = 0  # timestamp of last detection
+    HA_TOGGLE = False
 
     # Frame and properties
-    mediamtx_rtsp_url = f"rtsp://mediamtx:8554/{ARGS['CAMERA_PATH']}"
-    video_width, video_height, video_fps = app.utils.video.probe_stream(mediamtx_rtsp_url)
+    mediamtx_rtsp_url = f"rtsp://mediamtx:8554/{ARGS['CAMERA_ARG']}"
+    video_fps = app.utils.video.probe_stream(mediamtx_rtsp_url)
     if video_fps < 10 or video_fps > 50:
-        try:
-            video_fps = app.utils.config.CONFIG["VIDEO_FPS"]
-            app.utils.logger.pprint(f"FPS was overridden by the config to {video_fps}")
-        except KeyError:
-            pass
+        video_fps = 20
 
     # if it doesn't exist in config, default value will be used
     MAX_BATCH_SIZE = app.utils.config.CONFIG["YOLO_BATCH"]
@@ -138,46 +111,62 @@ if __name__ == "__main__":
 
     stream_reader_thread = threading.Thread(
         target=app.utils.video.collect_frames,
-        args=(cap, mediamtx_rtsp_url, FRAME_QUEUE, STOP_EVENT),
+        args=(cap, mediamtx_rtsp_url, FRAME_QUEUE),
         daemon=True,
     )
     stream_reader_thread.start()
 
 
     # Create directory structure
-    now = datetime.now()
+    now = datetime.now(ZoneInfo("Europe/Bucharest"))
     next_now = now + timedelta(hours=1)
 
     base_video_path = app.utils.config.CONFIG["VIDEO_PATH"]
-    output_video_path = (
+    now_video_path = (
         f"{base_video_path}"
         f"{now.strftime('/%Y/%m/%d/%H')}"
     )
-    next_output_video_path = (
+    next_video_path = (
         f"{base_video_path}"
         f"{next_now.strftime('/%Y/%m/%d/%H')}"
     )
 
-    SAVE_IMAGE_PATH = f"{output_video_path}/captures"
-    NEXT_SAVE_IMAGE_PATH = f"{next_output_video_path}/captures"
+    SAVE_IMAGE_PATH = f"{now_video_path}/captures"
+    NEXT_SAVE_IMAGE_PATH = f"{next_video_path}/captures"
     os.makedirs(SAVE_IMAGE_PATH, exist_ok=True)
     os.makedirs(NEXT_SAVE_IMAGE_PATH, exist_ok=True)
 
+
     # MAIN LOOP
     while True:
-        if datetime.now().hour == next_now.hour:
-            SAVE_IMAGE_PATH = NEXT_SAVE_IMAGE_PATH
+        if datetime.now(ZoneInfo("Europe/Bucharest")).hour == next_now.hour:
             # Create directory structure
-            now = datetime.now()
+            now = datetime.now(ZoneInfo("Europe/Bucharest"))
             next_now = now + timedelta(hours=1)
+            prev_now = now - timedelta(hours=1)
 
-            next_output_video_path = (
+            now_video_path = (
+                f"{base_video_path}"
+                f"{prev_now.strftime('/%Y/%m/%d/%H')}"
+            )
+            next_video_path = (
                 f"{base_video_path}"
                 f"{next_now.strftime('/%Y/%m/%d/%H')}"
             )
 
-            NEXT_SAVE_IMAGE_PATH = f"{next_output_video_path}/captures"
+            SAVE_IMAGE_PATH = f"{now_video_path}/captures"
+            NEXT_SAVE_IMAGE_PATH = f"{next_video_path}/captures"
             os.makedirs(NEXT_SAVE_IMAGE_PATH, exist_ok=True)
+
+            # A date object is immutable; all operations produce a new object
+            start = prev_now.replace(minute=0, second=0, microsecond=0).isoformat()
+            end = now.replace(minute=0, second=0, microsecond=0).isoformat()
+            download_hour_recording = threading.Thread(
+                target=app.integrations.mediamtx.download_recording,
+                args=(ARGS['CAMERA_ARG'], start, end, f"{now_video_path}/{ARGS['CAMERA_ARG']}.mp4"),
+                daemon=True,
+            )
+            download_hour_recording.start()
 
 
         # Possible busy loop?
@@ -189,10 +178,9 @@ if __name__ == "__main__":
             except queue.Empty:
                 if len(frames) > 2:
                     break
-                else:
-                    continue
+                continue
 
-        if ARGS["DETECTION"] and (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]:
+        if (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]:
             processed_frames = app.yolo.detection.process_frames(frames)
             if len(processed_frames) > 0:
                 start_timeout = time.time()
@@ -200,17 +188,15 @@ if __name__ == "__main__":
 
                 # Update last seen if detected
                 OCCUPANCY_LAST_SEEN = time.time()
-                if ARGS["HA_TRIGGER"] and not HA_TOGGLE:
+                if not HA_TOGGLE:
                     HA_TOGGLE = True
                     app.integrations.home_assistant.ha_trigger_boolean(True)
-
                 # If timeout has passed since last detection, turn off
-                if ARGS["HA_TRIGGER"] and HA_TOGGLE:
-                    if time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT:
-                        HA_TOGGLE = False
-                        app.integrations.home_assistant.ha_trigger_boolean(False)
+                elif HA_TOGGLE and (time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT):
+                    HA_TOGGLE = False
+                    app.integrations.home_assistant.ha_trigger_boolean(False)
 
-                now = datetime.now()
+                now = datetime.now(ZoneInfo("Europe/Bucharest"))
                 minute = now.minute
                 second = now.second
 
@@ -223,24 +209,16 @@ if __name__ == "__main__":
                 SAVE_IMAGE = f"{SAVE_IMAGE_PATH}/{SAVE_IMAGE_NAME}"
                 rc = cv2.imwrite(SAVE_IMAGE, video_frame)
                 if rc:
-                    app.utils.logger.pprint(f"Saved image to {SAVE_IMAGE}")
-                else:
-                    app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
-
-                if ARGS["SEND_NTFY"]:
+                    app.utils.logger.iprint(f"Saved image to {SAVE_IMAGE}")
                     try:
+                        # Sent on the docker network to container
                         app.integrations.ntfy.send_ntfy(
-                            app.utils.config.CONFIG["NTFY_URL"],
-                            app.utils.config.CONFIG["NTFY_TAG"],
-                            "Person detected",
-                            "",
-                            SAVE_IMAGE,
-                            "detection.jpeg",
+                            "http://ntfy", ARGS["NTFY_TAG_ARG"],
+                            "Person detected", "",
+                            SAVE_IMAGE, "detection.jpeg",
                         )
-                        app.utils.logger.pprint("Successfully sent ntfy")
+                        app.utils.logger.iprint("Successfully sent ntfy")
                     except requests.exceptions.HTTPError:
                         app.utils.logger.eprint("Failed to send ntfy")
-
-    # Stop reader
-    STOP_EVENT.set()
-    stream_reader_thread.join(timeout=2)
+                else:
+                    app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")

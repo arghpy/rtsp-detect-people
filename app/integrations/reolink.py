@@ -4,13 +4,16 @@ import string
 import urllib.request
 import urllib.parse
 import urllib.error
-import getpass
 import time
+from datetime import datetime
 import app.utils.logger
 
 
 def login(ip, username, password, timeout=5):
-    """Logs in and returns (token, expires_at_epoch), or (None, 0) on failure."""
+    """
+    Authored by Claude
+    Logs in and returns (token, expires_at_epoch), or (None, 0) on failure.
+    """
     url = f"http://{ip}/cgi-bin/api.cgi?cmd=Login"
     body = json.dumps([{
         "cmd": "Login",
@@ -27,6 +30,8 @@ def login(ip, username, password, timeout=5):
                 return None, 0
             token_info = data[0]["value"]["Token"]
             expires_at = time.time() + token_info.get("leaseTime", 3600)
+            expires_at_str = datetime.fromtimestamp(expires_at).strftime("%Y-%m-%d %H:%M:%S")
+            app.utils.logger.iprint(f"Token generated. Expires at {expires_at_str}")
             return token_info["name"], expires_at
     except (urllib.error.URLError, json.JSONDecodeError) as e:
         app.utils.logger.eprint(f"Login failed: {e}")
@@ -34,7 +39,10 @@ def login(ip, username, password, timeout=5):
 
 
 def get_snapshot(ip, token, channel=0, timeout=5):
-    """Fetches a JPEG snapshot using an existing session token."""
+    """
+    Authored by Claude
+    Fetches a JPEG snapshot using an existing session token.
+    """
     rs = "".join(random.choices(string.ascii_letters + string.digits, k=16))
     params = {"cmd": "Snap", "channel": channel, "rs": rs, "token": token}
     url = f"http://{ip}/cgi-bin/api.cgi?{urllib.parse.urlencode(params)}"
