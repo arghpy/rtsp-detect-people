@@ -43,7 +43,7 @@ services:
     # optional
     dns:
       - <IP>
-    image: ultralytics/ultralytics:8.3.95-nvidia-cuda
+    image: ultralytics/ultralytics:latest
     container_name: camera_front
     user: 1000:1000
     restart: unless-stopped
