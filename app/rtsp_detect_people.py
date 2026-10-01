@@ -191,10 +191,7 @@ if __name__ == "__main__":
                 if not HA_TOGGLE:
                     HA_TOGGLE = True
                     app.integrations.home_assistant.ha_trigger_boolean(True)
-                # If timeout has passed since last detection, turn off
-                elif HA_TOGGLE and (time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT):
-                    HA_TOGGLE = False
-                    app.integrations.home_assistant.ha_trigger_boolean(False)
+                    app.utils.logger.iprint("Home assistant trigger: ON")
 
                 now = datetime.now(ZoneInfo("Europe/Bucharest"))
                 minute = now.minute
@@ -222,3 +219,8 @@ if __name__ == "__main__":
                         app.utils.logger.eprint("Failed to send ntfy")
                 else:
                     app.utils.logger.eprint(f"Failed to save image to {SAVE_IMAGE}")
+            else:
+                if HA_TOGGLE and (time.time() - OCCUPANCY_LAST_SEEN > OCCUPANCY_DETECTED_TIMEOUT):
+                    HA_TOGGLE = False
+                    app.integrations.home_assistant.ha_trigger_boolean(False)
+                    app.utils.logger.iprint("Home assistant trigger: OFF")
