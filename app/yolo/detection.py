@@ -26,30 +26,39 @@ def load_model():
         app.utils.logger.eprint("Continuing with cpu detection.")
 
 
-def process_frames(frames):
-    """Process frame with yolo model only for people"""
+def process_frames(frames, classes):
+    """Process frame with yolo model"""
     yolo_imgsz = app.utils.config.CONFIG['YOLO_IMGSZ']
     yolo_conf  = app.utils.config.CONFIG['CONFIDENCE_MIN']
 
-    results = model(source=frames, conf=yolo_conf, verbose=False, classes=[0], half=True, imgsz=yolo_imgsz)
+    results = model(source=frames, conf=yolo_conf, verbose=False, half=True, imgsz=yolo_imgsz)
     output = []
 
     for frame, result in zip(frames, results):
-        boxes = result.boxes
-        if len(boxes) == 0:
-            continue
-        for box in boxes:
+        detected = False
+
+        for box in result.boxes:
             confidence = float(box.conf[0])
+            cls = int(box.cls[0])
+            cls_name = model.names[cls]
+
+            if cls_name not in classes:
+                continue
+
+            detected = True
+            app.utils.logger.iprint(f"Object detected: {cls_name} - {confidence * 100:.2f}%")
             x1, y1, x2, y2 = map(int, box.xyxy[0])
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             cv2.putText(
                 frame,
-                f"Person: {confidence*100:.2f}%",
-                (x1, y1 - 10),
+                f"{cls_name}: {confidence * 100:.2f}%",
+                (x1, max(y1 - 10, 20)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.5,
                 (0, 255, 0),
                 2,
             )
-        output.append(frame)
+        # Keep the frame only if at least one requested class was detected
+        if detected:
+            output.append(frame)
     return output

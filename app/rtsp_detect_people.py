@@ -53,6 +53,10 @@ def parse_arguments(argv):
             ARGS["CAMERA_ARG"] = str(passed_args[0])
         elif passed_args[0] == "--ha-trigger":
             ARGS["HA_TRIGGER"] = True
+        elif passed_args[0] == "--classes":
+            ARGS["CLASSES"] = True
+            passed_args.pop(0)
+            ARGS["CLASSES_ARG"] = str(passed_args[0])
         else:
             app.utils.logger.eprint(f"Invalid option: {passed_args[0]}")
             app.utils.help.usage(argv)
@@ -181,7 +185,8 @@ if __name__ == "__main__":
                 continue
 
         if (time.time() - start_timeout) > app.utils.config.CONFIG["TIMEOUT"]:
-            processed_frames = app.yolo.detection.process_frames(frames)
+            classes = ARGS['CLASSES_ARG'].split(',')
+            processed_frames = app.yolo.detection.process_frames(frames, classes)
             if len(processed_frames) > 0:
                 start_timeout = time.time()
                 video_frame = processed_frames[-1]
@@ -211,7 +216,7 @@ if __name__ == "__main__":
                         # Sent on the docker network to container
                         app.integrations.ntfy.send_ntfy(
                             "http://ntfy", ARGS["NTFY_TAG_ARG"],
-                            "Person detected", "",
+                            "Object detected", "",
                             SAVE_IMAGE, "detection.jpeg",
                         )
                         app.utils.logger.iprint("Successfully sent ntfy")

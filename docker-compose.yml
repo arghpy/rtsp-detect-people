@@ -58,6 +58,7 @@ services:
         "--config", "app/configuration_camera-front.json",
         "--ntfy-tag", "camera-front",
         "--camera", "camera-front",
+        "--classes", "person,car"
         ]
 
 volumes:
