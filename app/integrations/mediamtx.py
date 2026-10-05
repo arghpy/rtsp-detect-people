@@ -76,6 +76,7 @@ def download_recording(path: str, start: str, end: str, video_path: str) -> None
                     check=True,
                 )
                 app.utils.logger.iprint(f"Finished downloading recording: {video_path}")
+            break
         except Excepetion as e:
             app.utils.logger.eprint(f"Operation failed. Retry {retry}/{max_retry}: {e}.")
             if retry == max_retry:
