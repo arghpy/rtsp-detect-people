@@ -22,7 +22,7 @@ def compress_for_ntfy(jpeg_bytes, quality=80):
 
 
 def send_ntfy(base_url, tag, title, body, attachment_path, attachment_name):
-    app.utils.logger.iprint("Person detected. Sending notification")
+    app.utils.logger.iprint("Object detected. Sending notification")
     url = f"{base_url}/{tag}"
     with open(attachment_path, "rb") as f:
         data = f.read()

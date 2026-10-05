@@ -24,6 +24,7 @@ def usage(argv):
         ("--config FILE",       "configuration FILE to use",                              True),
         ("--camera CAMERA",     "CAMERA configured as path in mediaMTX",                  True),
         ("--ha-trigger",        "Home Assistant: trigger while person detected",          False),
+        ("--classes CLASSES",   "Comma separated classes to detect with yolo",            True),
     )
 
     str_options = " ".join(
