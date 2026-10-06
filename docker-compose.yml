@@ -44,7 +44,7 @@ services:
     # optional
     dns:
       - <IP>
-    image: ultralytics/ultralytics:latest
+    build: .
     container_name: camera_front
     user: 1000:1000
     restart: unless-stopped
