@@ -13,6 +13,7 @@ services:
       - 8189:8189/udp
     volumes:
       - /path/to/recordings:/recordings
+      - ./video-cache:/video-cache
       - ./mediamtx/mediamtx.yml:/mediamtx.yml
       - /etc/localtime:/etc/localtime
 

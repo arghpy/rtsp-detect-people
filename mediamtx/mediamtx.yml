@@ -18,7 +18,7 @@ paths:
   camera-front:
     source: "rtsp://<user>:<pass>@camera-front:554/Preview_01_sub"
     record: yes
-    recordPath: /tmp/%path_%s_%f
+    recordPath: /video-cache/%path_%s_%f
     recordFormat: fmp4
     recordPartDuration: 1s
     recordSegmentDuration: 1m
