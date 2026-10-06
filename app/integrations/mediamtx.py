@@ -3,6 +3,7 @@ import os
 import subprocess
 import requests
 import app.utils.logger
+import tempfile
 
 
 def download_file(url: str, params: dict, output_path: str) -> None:
@@ -43,41 +44,40 @@ def download_recording(path: str, start: str, end: str, video_path: str) -> None
                     app.utils.logger.iprint(f"Downloading {index+1}/{len(recordings)} recordings")
                     download_file(url=recordings[0]["url"], params={"format": "mp4"}, output_path=video_path)
             else:
-                temp_dir = "/tmp/mediamtx"
-                os.makedirs(temp_dir, exist_ok=True)
-                input_files = []
-                for index, recording in enumerate(recordings):
-                    app.utils.logger.iprint(f"Downloading {index+1}/{len(recordings)} recordings")
-                    temp_recording = f"{temp_dir}/{index+1:04d}.mp4"
-                    download_file(url=recording["url"], params={"format": "mp4"}, output_path=temp_recording)
-                    input_files.append(temp_recording)
+                with tempfile.TemporaryDirectory(prefix="mediamtx_") as temp_dir:
+                    input_files = []
+                    for index, recording in enumerate(recordings):
+                        app.utils.logger.iprint(f"Downloading {index+1}/{len(recordings)} recordings")
+                        temp_recording = os.path.join(temp_dir, f"{index + 1:04d}.mp4")
+                        download_file(url=recording["url"], params={"format": "mp4"}, output_path=temp_recording)
+                        input_files.append(temp_recording)
 
-                # Create FFmpeg concat file
-                concat_file = f"{temp_dir}/concat.txt"
+                    # Create FFmpeg concat file
+                    concat_file = os.path.join(temp_dir, "concat.txt")
 
-                with open(concat_file, "w", encoding="utf-8") as file:
-                    for input_file in input_files:
-                        file.write(f"file '{input_file}'\n")
+                    with open(concat_file, "w", encoding="utf-8") as file:
+                        for input_file in input_files:
+                            file.write(f"file '{input_file}'\n")
 
-                app.utils.logger.iprint(f"Concatenating {len(input_files)} recordings")
-                subprocess.run(
-                    [
-                        "ffmpeg",
-                        "-hide_banner",
-                        "-loglevel", "error",
-                        "-f", "concat",
-                        "-safe", "0",
-                        "-i", str(concat_file),
-                        "-c", "copy",
-                        "-movflags", "+faststart",
-                        "-y",
-                        str(video_path),
-                    ],
-                    check=True,
-                )
-                app.utils.logger.iprint(f"Finished downloading recording: {video_path}")
+                    app.utils.logger.iprint(f"Concatenating {len(input_files)} recordings")
+                    subprocess.run(
+                        [
+                            "ffmpeg",
+                            "-hide_banner",
+                            "-loglevel", "error",
+                            "-f", "concat",
+                            "-safe", "0",
+                            "-i", str(concat_file),
+                            "-c", "copy",
+                            "-movflags", "+faststart",
+                            "-y",
+                            str(video_path),
+                        ],
+                        check=True,
+                    )
+                    app.utils.logger.iprint(f"Finished downloading recording: {video_path}")
             break
-        except Excepetion as e:
+        except Exception as e:
             app.utils.logger.eprint(f"Operation failed. Retry {retry}/{max_retry}: {e}.")
             if retry == max_retry:
                 app.utils.logger.eprint(f"Maximum retries reached ({max_retry})")
