@@ -45,6 +45,13 @@ elif (( quota > 99 )); then
 fi
 
 
+# Delete empty directories older than 1 day ago
+touch -t "$(date -d '-1 day' '+%Y%m%d%H%M')" control_file
+nr_empty_folders="$(find "${target_folder}" -type d -empty ! -path '*lost+found*' ! -newer control_file | wc -l)"
+echo "Deleting ${nr_empty_folders} empty folders"
+find "${target_folder}" -type d -empty ! -path '*lost+found*' ! -newer control_file -delete
+rm control_file
+
 current_disk_usage="$(df "${target_folder}" | awk 'NR==2 {gsub("%",""); print $5}')"
 
 if (( quota > current_disk_usage )); then
