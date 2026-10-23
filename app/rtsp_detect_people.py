@@ -149,6 +149,10 @@ if __name__ == "__main__":
             next_now = now + timedelta(hours=1)
             prev_now = now - timedelta(hours=1)
 
+            prev_video_path = (
+                f"{base_video_path}"
+                f"{prev.strftime('/%Y/%m/%d/%H')}"
+            )
             now_video_path = (
                 f"{base_video_path}"
                 f"{now.strftime('/%Y/%m/%d/%H')}"
@@ -167,7 +171,7 @@ if __name__ == "__main__":
             end = now.replace(minute=0, second=0, microsecond=0).isoformat()
             download_hour_recording = threading.Thread(
                 target=app.integrations.mediamtx.download_recording,
-                args=(ARGS['CAMERA_ARG'], start, end, f"{now_video_path}/{ARGS['CAMERA_ARG']}.mp4"),
+                args=(ARGS['CAMERA_ARG'], start, end, f"{prev_video_path}/{ARGS['CAMERA_ARG']}.mp4"),
                 daemon=True,
             )
             download_hour_recording.start()
