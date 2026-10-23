@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
             prev_video_path = (
                 f"{base_video_path}"
-                f"{prev.strftime('/%Y/%m/%d/%H')}"
+                f"{prev_now.strftime('/%Y/%m/%d/%H')}"
             )
             now_video_path = (
                 f"{base_video_path}"
